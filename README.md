@@ -103,7 +103,7 @@ ForgeryNet/
 
 ### 1. Requirements & Setup
 ```bash
-git clone https://github.com/Aptee/ForgeryNet-Indic.git
+git clone https://github.com/rajabhakta02/ForgeryNet-Indic.git
 cd ForgeryNet-Indic
 pip install -r requirements.txt
 ```
