@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyTorch Checkpoints and Models (>100MB blocked by GitHub)
+*.pth
+*.pt
+*.ckpt
+outputs/checkpoints/
+
+# Datasets (large binary scans)
+Bengali_Handwriting_CopyMove_Dataset/
+*.tif
+*.tiff
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# LaTeX auxiliary build files
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.fls
+*.fdb_latexmk
+
+# OS generated files
+.DS_Store
+Thumbs.db
