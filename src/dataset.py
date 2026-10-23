@@ -1,305 +1,243 @@
 """
-dataset.py — ForgeryDataset and DataLoader factory for the
-Bengali Handwriting Forgery Detection pipeline.
+dataset.py — Dataset loaders for Bengali Handwriting Forgery Detection.
 
-Each sample yields:
-    image       : FloatTensor (3, H, W)  — ImageNet-normalised
-    binary_label: LongTensor  ()         — 0=Genuine, 1=Forged
-    type_label  : LongTensor  ()         — 0=CopyMove, 1=Splicing, 2=CharAdd, -1=Genuine
-    mask        : FloatTensor (1, H, W)  — binary {0,1}; all-zeros for genuine
+Provides:
+1. FullPageForgeryDataset: Resizes full document scans to (512, 512).
+2. PatchForgeryDataset: Extracts native-resolution (512, 512) crops with 70%
+   biased sampling centered on active tampering stroke coordinates.
 """
 
 import os
-import json
 import random
 from pathlib import Path
-from typing import List, Tuple, Dict
+from typing import List, Dict, Tuple, Optional
 
 import numpy as np
 from PIL import Image
-
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
-
-# -----------------------------------------------------------------------------
-# Constants
-# -----------------------------------------------------------------------------
-
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
-
-# Forgery type label mapping
-TYPE_LABEL = {
-    "copy_move":          0,
-    "splicing":           1,
-    "character_addition": 2,
-}
-
-# Input spatial size fed to the network
-TARGET_SIZE = (512, 512)   # (H, W)
+TYPE_LABEL    = {"copy_move": 0, "splicing": 1, "character_addition": 2}
+TARGET_SIZE   = 512
 
 
 # -----------------------------------------------------------------------------
-# Sample collection helpers
+# File Discovery & Stratified Split
 # -----------------------------------------------------------------------------
 
-def _collect_genuine(genuine_dir: str) -> List[Dict]:
-    """Gather all genuine .tif files as label=0 samples."""
+def collect_samples(root_dir: str) -> List[Dict]:
     samples = []
-    for fname in sorted(os.listdir(genuine_dir)):
-        if fname.lower().endswith(".tif"):
+    root = Path(root_dir)
+
+    # 1. Genuine (binary=0, type=-1)
+    gen_dir = root / "genuine"
+    if gen_dir.exists():
+        for f in sorted(os.listdir(gen_dir)):
+            if f.lower().endswith((".tif", ".tiff", ".png", ".jpg")):
+                samples.append({
+                    "image_path": str(gen_dir / f),
+                    "mask_path": None,
+                    "binary_label": 0,
+                    "type_label": -1,
+                    "category": "genuine"
+                })
+
+    # 2. Forged categories (binary=1, type=0, 1, 2)
+    for cat_name, type_idx in TYPE_LABEL.items():
+        f_dir = root / cat_name / "forged"
+        m_dir = root / cat_name / "masks"
+        if not f_dir.exists():
+            continue
+        for f in sorted(os.listdir(f_dir)):
+            if not f.lower().endswith((".tif", ".tiff", ".png", ".jpg")):
+                continue
+            stem = Path(f).stem
+            mask_path = m_dir / f"{stem}_mask.tif"
+            if not mask_path.exists():
+                mask_path = m_dir / f"{stem}_mask.png"
             samples.append({
-                "image_path":   os.path.join(genuine_dir, fname),
-                "mask_path":    None,           # will produce all-zero mask
-                "binary_label": 0,
-                "type_label":   -1,             # masked out during type-loss
+                "image_path": str(f_dir / f),
+                "mask_path": str(mask_path) if mask_path.exists() else None,
+                "binary_label": 1,
+                "type_label": type_idx,
+                "category": cat_name
             })
     return samples
 
 
-def _collect_forged(category_dir: str, type_key: str) -> List[Dict]:
-    """
-    Gather forged samples from a category folder that follows the layout:
-        category_dir/
-            forged/    *.tif
-            masks/     *_mask.tif
-    Masks are matched by replacing the forged filename stem with '<stem>_mask'.
-    """
-    forged_dir = os.path.join(category_dir, "forged")
-    mask_dir   = os.path.join(category_dir, "masks")
-    type_lbl   = TYPE_LABEL[type_key]
+def split_samples(
+    samples: List[Dict],
+    train_ratio: float = 0.70,
+    val_ratio: float = 0.15,
+    seed: int = 42
+) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+    """Performs category-stratified splitting across train (70%), val (15%), test (15%)."""
+    rng = random.Random(seed)
+    by_cat = {}
+    for s in samples:
+        by_cat.setdefault(s["category"], []).append(s)
 
-    samples = []
-    for fname in sorted(os.listdir(forged_dir)):
-        if not fname.lower().endswith(".tif"):
-            continue
+    train, val, test = [], [], []
+    for cat, items in by_cat.items():
+        shuffled = list(items)
+        rng.shuffle(shuffled)
+        n = len(shuffled)
+        n_tr = int(n * train_ratio)
+        n_vl = int(n * val_ratio)
+        train.extend(shuffled[:n_tr])
+        val.extend(shuffled[n_tr:n_tr + n_vl])
+        test.extend(shuffled[n_tr + n_vl:])
 
-        stem      = Path(fname).stem                    # e.g. AKD_copy_move_01_final
-        mask_name = f"{stem}_mask.tif"
-        mask_path = os.path.join(mask_dir, mask_name)
-
-        # Gracefully handle a missing mask — treat as all-zero
-        if not os.path.exists(mask_path):
-            mask_path = None
-
-        samples.append({
-            "image_path":   os.path.join(forged_dir, fname),
-            "mask_path":    mask_path,
-            "binary_label": 1,
-            "type_label":   type_lbl,
-        })
-    return samples
+    return train, val, test
 
 
 # -----------------------------------------------------------------------------
 # Transforms
 # -----------------------------------------------------------------------------
 
-def _image_transform(augment: bool) -> transforms.Compose:
+def get_transforms(augment: bool = False):
     ops = []
     if augment:
-        ops += [
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomVerticalFlip(p=0.3),
-            transforms.RandomRotation(degrees=5),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2,
-                                   saturation=0.1, hue=0.05),
-        ]
-    ops += [
+        ops.append(transforms.ColorJitter(brightness=0.1, contrast=0.1))
+    ops.extend([
         transforms.ToTensor(),
-        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-    ]
+        transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)
+    ])
     return transforms.Compose(ops)
 
 
 # -----------------------------------------------------------------------------
-# Dataset
+# Dataset 1: Full-Page Resized Dataset (Stages 1, 2, 3)
 # -----------------------------------------------------------------------------
 
-class ForgeryDataset(Dataset):
-    """
-    Unified dataset for Bengali Handwriting Forgery Detection.
+class FullPageForgeryDataset(Dataset):
+    def __init__(self, samples: List[Dict], img_size: int = TARGET_SIZE, augment: bool = False):
+        self.samples = samples
+        self.img_size = img_size
+        self.augment = augment
+        self.tf = get_transforms(augment)
 
-    Args:
-        root_dir  : Path to ``Bengali_Handwriting_CopyMove_Dataset/``
-        samples   : Pre-split list of sample dicts (from ``make_dataloaders``).
-        augment   : If True, applies training-time augmentation.
-        img_size  : (H, W) to resize all images/masks to.
-    """
-
-    def __init__(
-        self,
-        root_dir:  str,
-        samples:   List[Dict],
-        augment:   bool = False,
-        img_size:  Tuple[int, int] = TARGET_SIZE,
-    ) -> None:
-        self.samples   = samples
-        self.augment   = augment
-        self.img_size  = img_size
-        self.img_tf    = _image_transform(augment)
-
-    # -- Internals -------------------------------------------------------------
-
-    def _load_image(self, path: str) -> Image.Image:
-        img = Image.open(path)
-        # Handle multi-page TIFs — take the first page
-        try:
-            img.seek(0)
-        except Exception:
-            pass
-        return img.convert("RGB")
-
-    def _load_mask(self, path: str | None) -> np.ndarray:
-        """Return a (H, W) binary numpy array in {0, 1}."""
-        if path is None or not os.path.exists(path):
-            return np.zeros(self.img_size, dtype=np.float32)
-
-        mask = Image.open(path).convert("L")            # grayscale
-        mask = mask.resize(
-            (self.img_size[1], self.img_size[0]),        # PIL takes (W, H)
-            resample=Image.NEAREST,
-        )
-        arr = np.array(mask, dtype=np.float32)
-        arr = (arr > 127).astype(np.float32)             # binarise
-        return arr
-
-    def _apply_joint_augment(
-        self,
-        image: Image.Image,
-        mask_arr: np.ndarray,
-    ) -> Tuple[Image.Image, np.ndarray]:
-        """Apply the same spatial augmentations to image AND mask."""
-        if not self.augment:
-            return image, mask_arr
-
-        # Horizontal flip
-        if random.random() < 0.5:
-            image    = image.transpose(Image.FLIP_LEFT_RIGHT)
-            mask_arr = mask_arr[:, ::-1].copy()
-
-        # Vertical flip
-        if random.random() < 0.3:
-            image    = image.transpose(Image.FLIP_TOP_BOTTOM)
-            mask_arr = mask_arr[::-1, :].copy()
-
-        # Small rotation  (±5°)
-        angle = random.uniform(-5, 5)
-        image    = image.rotate(angle, resample=Image.BILINEAR, expand=False)
-        mask_pil = Image.fromarray((mask_arr * 255).astype(np.uint8))
-        mask_pil = mask_pil.rotate(angle, resample=Image.NEAREST, expand=False)
-        mask_arr = (np.array(mask_pil) > 127).astype(np.float32)
-
-        return image, mask_arr
-
-    # -- Public interface ------------------------------------------------------
-
-    def __len__(self) -> int:
+    def __len__(self):
         return len(self.samples)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, ...]:
-        s = self.samples[idx]
+    def __getitem__(self, idx: int):
+        item = self.samples[idx]
+        img = Image.open(item["image_path"]).convert("RGB")
+        try: img.seek(0)
+        except Exception: pass
 
-        # -- Load & resize image ----------------------------------------------
-        image = self._load_image(s["image_path"])
-        image = image.resize(
-            (self.img_size[1], self.img_size[0]),   # PIL (W, H)
-            resample=Image.BILINEAR,
-        )
+        if item["mask_path"] and os.path.exists(item["mask_path"]):
+            mask = Image.open(item["mask_path"]).convert("L")
+            mask = mask.resize((self.img_size, self.img_size), Image.NEAREST)
+            mask_arr = (np.array(mask, dtype=np.float32) > 127).astype(np.float32)
+        else:
+            mask_arr = np.zeros((self.img_size, self.img_size), dtype=np.float32)
 
-        # -- Load mask --------------------------------------------------------
-        mask_arr = self._load_mask(s["mask_path"])
+        img = img.resize((self.img_size, self.img_size), Image.BILINEAR)
 
-        # -- Joint spatial augmentation ---------------------------------------
-        image, mask_arr = self._apply_joint_augment(image, mask_arr)
+        if self.augment and random.random() > 0.5:
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
+            mask_arr = np.fliplr(mask_arr).copy()
 
-        # -- Convert to tensors -----------------------------------------------
-        image_tensor = self.img_tf(image)                    # (3, H, W), float32
-        mask_tensor  = torch.from_numpy(mask_arr).unsqueeze(0)  # (1, H, W)
-
-        binary_label = torch.tensor(s["binary_label"], dtype=torch.long)
-        type_label   = torch.tensor(s["type_label"],   dtype=torch.long)
-
-        return image_tensor, binary_label, type_label, mask_tensor
+        img_t = self.tf(img)
+        mask_t = torch.from_numpy(mask_arr).unsqueeze(0)
+        return img_t, torch.tensor(item["binary_label"], dtype=torch.long), torch.tensor(item["type_label"], dtype=torch.long), mask_t
 
 
 # -----------------------------------------------------------------------------
-# DataLoader factory
+# Dataset 2: Native-Resolution Biased Patch Dataset (Stage 4 - Final SOTA)
+# -----------------------------------------------------------------------------
+
+class PatchForgeryDataset(Dataset):
+    def __init__(self, samples: List[Dict], patch_size: int = TARGET_SIZE, augment: bool = False):
+        self.samples = samples
+        self.patch_size = patch_size
+        self.augment = augment
+        self.tf = get_transforms(augment)
+
+    def __len__(self):
+        return len(self.samples)
+
+    def _get_crop_coords(self, W: int, H: int, mask_arr: np.ndarray) -> Tuple[int, int, int, int]:
+        ps = self.patch_size
+        if W <= ps or H <= ps:
+            return 0, 0, min(W, ps), min(H, ps)
+
+        has_forgery = mask_arr.sum() > 0
+        if has_forgery and (random.random() < 0.70 or not self.augment):
+            y_indices, x_indices = np.where(mask_arr > 0)
+            c_idx = random.randint(0, len(y_indices) - 1)
+            cx, cy = int(x_indices[c_idx]), int(y_indices[c_idx])
+            x0 = max(0, min(W - ps, cx - ps // 2 + random.randint(-40, 40)))
+            y0 = max(0, min(H - ps, cy - ps // 2 + random.randint(-40, 40)))
+        else:
+            x0 = random.randint(0, W - ps)
+            y0 = random.randint(0, H - ps)
+        return x0, y0, x0 + ps, y0 + ps
+
+    def __getitem__(self, idx: int):
+        item = self.samples[idx]
+        img = Image.open(item["image_path"]).convert("RGB")
+        try: img.seek(0)
+        except Exception: pass
+        W, H = img.size
+
+        if item["mask_path"] and os.path.exists(item["mask_path"]):
+            mask = Image.open(item["mask_path"]).convert("L")
+            mask_arr = (np.array(mask, dtype=np.float32) > 127).astype(np.float32)
+        else:
+            mask_arr = np.zeros((H, W), dtype=np.float32)
+
+        x0, y0, x1, y1 = self._get_crop_coords(W, H, mask_arr)
+        crop_img = img.crop((x0, y0, x1, y1))
+        crop_mask = mask_arr[y0:y1, x0:x1]
+
+        if crop_img.size != (self.patch_size, self.patch_size):
+            crop_img = crop_img.resize((self.patch_size, self.patch_size), Image.BILINEAR)
+            crop_mask = Image.fromarray((crop_mask * 255).astype(np.uint8)).resize((self.patch_size, self.patch_size), Image.NEAREST)
+            crop_mask = (np.array(crop_mask, dtype=np.float32) > 127).astype(np.float32)
+
+        if self.augment and random.random() > 0.5:
+            crop_img = crop_img.transpose(Image.FLIP_LEFT_RIGHT)
+            crop_mask = np.fliplr(crop_mask).copy()
+
+        img_t = self.tf(crop_img)
+        mask_t = torch.from_numpy(crop_mask).unsqueeze(0)
+        return img_t, torch.tensor(item["binary_label"], dtype=torch.long), torch.tensor(item["type_label"], dtype=torch.long), mask_t
+
+
+# -----------------------------------------------------------------------------
+# Factory Loader
 # -----------------------------------------------------------------------------
 
 def make_dataloaders(
-    root_dir:   str,
-    batch_size: int  = 8,
-    num_workers: int = 4,
-    seed:       int  = 42,
-    img_size:   Tuple[int, int] = TARGET_SIZE,
-    val_frac:   float = 0.15,
-    test_frac:  float = 0.15,
+    root_dir: str,
+    mode: str = "patch",
+    batch_size: int = 8,
+    num_workers: int = 0,
+    seed: int = 42,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
-    Build stratified train / val / test DataLoaders.
-
-    Returns:
-        (train_loader, val_loader, test_loader)
+    Args:
+        mode: 'patch' for native-resolution crops (Stage 4) or 'fullpage' for resized scans (Stages 1-3).
     """
-    random.seed(seed)
-    np.random.seed(seed)
+    samples = collect_samples(root_dir)
+    train_s, val_s, test_s = split_samples(samples, seed=seed)
 
-    dataset_dir = root_dir  # expects Bengali_Handwriting_CopyMove_Dataset/
+    if mode == "patch":
+        tr_ds = PatchForgeryDataset(train_s, augment=True)
+        vl_ds = PatchForgeryDataset(val_s, augment=False)
+        ts_ds = PatchForgeryDataset(test_s, augment=False)
+    else:
+        tr_ds = FullPageForgeryDataset(train_s, augment=True)
+        vl_ds = FullPageForgeryDataset(val_s, augment=False)
+        ts_ds = FullPageForgeryDataset(test_s, augment=False)
 
-    # -- Collect all samples ---------------------------------------------------
-    all_samples: List[Dict] = []
-    all_samples += _collect_genuine(os.path.join(dataset_dir, "genuine"))
-    all_samples += _collect_forged(
-        os.path.join(dataset_dir, "copy_move_clean"), "copy_move"
-    )
-    all_samples += _collect_forged(
-        os.path.join(dataset_dir, "splicing"), "splicing"
-    )
-    all_samples += _collect_forged(
-        os.path.join(dataset_dir, "character_addition"), "character_addition"
-    )
+    tr_loader = DataLoader(tr_ds, batch_size=batch_size, shuffle=True,  num_workers=num_workers, pin_memory=True)
+    vl_loader = DataLoader(vl_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+    ts_loader = DataLoader(ts_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
 
-    print(f"[dataset] Total samples collected: {len(all_samples)}")
-
-    # -- Stratified split by binary label -------------------------------------
-    genuine_s = [s for s in all_samples if s["binary_label"] == 0]
-    forged_s  = [s for s in all_samples if s["binary_label"] == 1]
-
-    def split_list(lst: List, val_f: float, test_f: float):
-        random.shuffle(lst)
-        n = len(lst)
-        n_test = max(1, int(n * test_f))
-        n_val  = max(1, int(n * val_f))
-        return lst[n_test + n_val:], lst[n_test:n_test + n_val], lst[:n_test]
-
-    g_train, g_val, g_test = split_list(genuine_s, val_frac, test_frac)
-    f_train, f_val, f_test = split_list(forged_s,  val_frac, test_frac)
-
-    train_samples = g_train + f_train
-    val_samples   = g_val   + f_val
-    test_samples  = g_test  + f_test
-
-    random.shuffle(train_samples)
-
-    print(f"[dataset] Split -> train:{len(train_samples)}  "
-          f"val:{len(val_samples)}  test:{len(test_samples)}")
-
-    # -- Instantiate Dataset objects -------------------------------------------
-    train_ds = ForgeryDataset(dataset_dir, train_samples, augment=True,  img_size=img_size)
-    val_ds   = ForgeryDataset(dataset_dir, val_samples,   augment=False, img_size=img_size)
-    test_ds  = ForgeryDataset(dataset_dir, test_samples,  augment=False, img_size=img_size)
-
-    loader_kw = dict(
-        batch_size  = batch_size,
-        num_workers = num_workers,
-        pin_memory  = torch.cuda.is_available(),
-    )
-
-    train_loader = DataLoader(train_ds, shuffle=True,  **loader_kw)
-    val_loader   = DataLoader(val_ds,   shuffle=False, **loader_kw)
-    test_loader  = DataLoader(test_ds,  shuffle=False, **loader_kw)
-
-    return train_loader, val_loader, test_loader
+    return tr_loader, vl_loader, ts_loader
