@@ -15,11 +15,13 @@
 \usepackage{algpseudocode}
 \usepackage{listings}
 \usepackage{url}
+\usepackage{etoolbox}
 
 \raggedbottom
 
 \makeatletter
 \let\cleardoublepage\clearpage
+\patchcmd{\@maketitle}{\newpage\null}{}{}{}
 \makeatother
 
 \begin{document}
@@ -282,21 +284,25 @@ To provide a rigorous, multi-faceted assessment across all three operational bra
 \end{enumerate}
 
 \begin{table*}[t]
-\caption{Quantitative ablation trajectory of the proposed ForgeryNet architecture across progressive developmental configurations on the held-out test split ($N = 132$).}\label{tab_ablation}
 \centering
-\small
-\setlength{\tabcolsep}{5pt}
+\begin{threeparttable}
+\caption{Quantitative ablation trajectory of the proposed ForgeryNet architecture across progressive developmental configurations on the held-out test split ($N = 132$).}\label{tab_ablation}
+\tablebodyfont
+\setlength{\tabcolsep}{3.5pt}
 \begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccccc@{}}
 \toprule
-\textbf{Configuration} & \textbf{Det. Acc (\%)} & \textbf{ROC-AUC} & \textbf{Gen. Acc (\%)} & \textbf{Forged Rec (\%)} & \textbf{mDice} & \textbf{Macro F1} \\
+\textbf{Configuration} & \textbf{Det. Acc. (\%)} & \textbf{ROC-AUC} & \textbf{Gen. Acc. (\%)} & \textbf{Forged Rec. (\%)} & \textbf{mDice} & \textbf{Macro F1} \\
 \midrule
-1. Baseline CNN (Downsampled $512^2$) & 75.00 & 0.7815 & 0.00 (0/33) & \textbf{100.0} (99/99) & 0.0000 & 0.7789 \\
-2. Balanced Loss (Focal Tversky + BCE) & 72.00 & 0.7853 & 69.70 (23/33) & 72.73 (72/99) & 0.3184 & 0.7993 \\
-3. Dual-Stream + Spatial Attention    & 74.24 & 0.8606 & 18.18 (6/33) & 92.93 (92/99) & 0.0988 & 0.7666 \\
-\textbf{4. Native Patch Pipeline (Proposed)} & \textbf{89.39} & \textbf{0.9446} & \textbf{100.0} (35/35) & 85.57 (83/97) & \textbf{0.3330} & \textbf{0.8005} \\
+1. Baseline CNN ($512^2$ Full-Page)          & 75.00 & 0.7815 & 0.00 {\scriptsize(0/33)}    & \textbf{100.0} {\scriptsize(99/99)} & 0.0000 & 0.7789 \\
+2. Balanced Loss (Focal Tversky + BCE)       & 72.00 & 0.7853 & 69.70 {\scriptsize(23/33)}  & 72.73 {\scriptsize(72/99)}          & 0.3184 & 0.7993 \\
+3. Dual-Stream + Spatial Attention           & 74.24 & 0.8606 & 18.18 {\scriptsize(6/33)}   & 92.93 {\scriptsize(92/99)}          & 0.0988 & 0.7666 \\
+\textbf{4. Native Patch Pipeline (Proposed)} & \textbf{89.39} & \textbf{0.9446} & \textbf{100.0} {\scriptsize(35/35)} & 85.57 {\scriptsize(83/97)} & \textbf{0.3330} & \textbf{0.8005} \\
 \botrule
 \end{tabular*}
-\footnotetext{Note: Configurations 1--3 evaluate full-page scans ($512 \times 512$). Configuration 4 evaluates native-resolution patches ($512 \times 512$ crops). In Configuration 4, two localized crops from forged manuscripts fell entirely within unaltered text regions and were verified as clean, yielding 35 authentic and 97 active manipulation test patches.}
+\begin{tablenotes}
+\item \textit{Note:} Configurations 1--3 evaluate full-page scans ($512 \times 512$). Configuration 4 evaluates native-resolution patches ($512 \times 512$ crops). In Configuration 4, two localized crops from forged manuscripts fell entirely within unaltered text regions and were verified as clean, yielding 35 authentic and 97 active manipulation test patches. Bracketed figures indicate exact category-wise support counts ($n/N$).
+\end{tablenotes}
+\end{threeparttable}
 \end{table*}
 
 \subsection{Ablation Study and Performance Progression}\label{subsec5_3}
