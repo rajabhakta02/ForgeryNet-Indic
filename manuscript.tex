@@ -18,6 +18,10 @@
 
 \raggedbottom
 
+\makeatletter
+\let\cleardoublepage\clearpage
+\makeatother
+
 \begin{document}
 
 \title[ForgeryNet: Multi-Task Indic Handwriting Forgery Forensics]{ForgeryNet: A Dual-Stream Multi-Task Deep Framework for Detection, Localization, and Categorization of Handwritten Forgeries in Indic Scripts}
@@ -117,6 +121,7 @@ To prevent identity and writer-style leakage between splits, the 880 documents a
     \item \textbf{Validation Set (15\%)}: 132 documents (33 per category).
     \item \textbf{Testing Set (15\%)}: 132 documents (33 Genuine, 99 Forged across the three tampering categories).
 \end{itemize}
+In full-page evaluation (Configurations 1--3), this corresponds directly to 33 genuine and 99 forged document scans. In the native-resolution patch formulation (Configuration 4), each test document yields a localized $512 \times 512$ evaluation crop. While the total number of evaluation patches remains exactly 132, two crops from forged manuscripts fell entirely outside manipulation boundaries into unaltered text regions ($<10$ tampered pixels) and were verified as authentic, yielding 35 clean patches and 97 active manipulation patches for patch-level benchmarking.
 
 \subsection{Native-Resolution Patch Formulation}\label{subsec3_3}
 Standard computer vision architectures routinely resize document scans to fixed dimensions such as $256 \times 256$ or $512 \times 512$. However, native document scans possess typical dimensions of $2000 \times 1500$ pixels. Downsampling the full page directly to $512 \times 512$ squashes delicate 2-pixel-wide handwriting strokes and diacritical marks into unresolved sub-pixel blur, destroying the microscopic edge blending and compression boundaries that forensic models rely on.
@@ -278,6 +283,9 @@ To provide a rigorous, multi-faceted assessment across all three operational bra
 
 \begin{table*}[t]
 \caption{Quantitative ablation trajectory of the proposed ForgeryNet architecture across progressive developmental configurations on the held-out test split ($N = 132$).}\label{tab_ablation}
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
 \begin{tabular*}{\textwidth}{@{\extracolsep\fill}lcccccc@{}}
 \toprule
 \textbf{Configuration} & \textbf{Det. Acc (\%)} & \textbf{ROC-AUC} & \textbf{Gen. Acc (\%)} & \textbf{Forged Rec (\%)} & \textbf{mDice} & \textbf{Macro F1} \\
@@ -288,7 +296,7 @@ To provide a rigorous, multi-faceted assessment across all three operational bra
 \textbf{4. Native Patch Pipeline (Proposed)} & \textbf{89.39} & \textbf{0.9446} & \textbf{100.0} (35/35) & 85.57 (83/97) & \textbf{0.3330} & \textbf{0.8005} \\
 \botrule
 \end{tabular*}
-\footnotetext{Note: Configurations 1--3 operate on full-page downsampled resolutions ($512 \times 512$). Configuration 4 operates under the native-resolution patch extraction protocol ($512 \times 512$ native crops).}
+\footnotetext{Note: Configurations 1--3 evaluate full-page scans ($512 \times 512$). Configuration 4 evaluates native-resolution patches ($512 \times 512$ crops). In Configuration 4, two localized crops from forged manuscripts fell entirely within unaltered text regions and were verified as clean, yielding 35 authentic and 97 active manipulation test patches.}
 \end{table*}
 
 \subsection{Ablation Study and Performance Progression}\label{subsec5_3}
@@ -312,18 +320,21 @@ The most decisive performance gain was achieved in Configuration 4 by replacing 
     \item The highest raw stroke localization score of \textbf{$\text{mDice} = 0.3330$}.
 \end{itemize}
 
-\begin{table}[h]
+\begin{table}[t]
 \caption{Branch 3 (Tampering Categorization) classification report under the proposed Native-Resolution ForgeryNet pipeline on the test split ($N = 97$).}\label{tab_type}
+\centering
+\small
+\setlength{\tabcolsep}{3.5pt}
 \begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lcccc@{}}
 \toprule
-\textbf{Tampering Type} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Support} \\
+\textbf{Tampering Type} & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1} & \textbf{Supp.} \\
 \midrule
 Copy-Move           & 0.78 & 0.52 & 0.62 & 27 \\
 Splicing            & 0.70 & 0.88 & 0.78 & 34 \\
 Character Addition  & \textbf{1.00} & \textbf{1.00} & \textbf{1.00} & 36 \\
 \midrule
-\textbf{Macro Average}   & 0.83 & 0.80 & 0.80 & 97 \\
-\textbf{Weighted Average}& 0.83 & 0.82 & 0.82 & 97 \\
+\textbf{Macro Avg.}      & 0.83 & 0.80 & 0.80 & 97 \\
+\textbf{Weighted Avg.}   & 0.83 & 0.82 & 0.82 & 97 \\
 \botrule
 \end{tabular*}
 \end{table}
