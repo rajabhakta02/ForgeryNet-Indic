@@ -26,33 +26,54 @@ from src.model import ForgeryNet
 from src.utils import TYPE_NAMES
 
 
-def dice_coeff(pred: np.ndarray, target: np.ndarray, eps: float = 1.0) -> float:
-    p = (pred > 0).astype(np.float32)
-    t = (target > 0).astype(np.float32)
-    intersection = (p * t).sum()
-    return float((2.0 * intersection + eps) / (p.sum() + t.sum() + eps))
+def compute_mask_metrics(pred_bin: np.ndarray, gt_bin: np.ndarray) -> dict:
+    """
+    Computes exact mathematically consistent Dice, IoU, Precision, and Recall
+    for a single pair of binary masks (0 or 1).
+    """
+    intersection = float(np.logical_and(pred_bin, gt_bin).sum())
+    p_sum = float(pred_bin.sum())
+    g_sum = float(gt_bin.sum())
+    union = float(np.logical_or(pred_bin, gt_bin).sum())
 
+    if p_sum == 0 and g_sum == 0:
+        return {"dice": 1.0, "iou": 1.0, "precision": 1.0, "recall": 1.0, "p_sum": 0, "g_sum": 0, "intersection": 0}
 
-def iou_coeff(pred: np.ndarray, target: np.ndarray, eps: float = 1.0) -> float:
-    p = (pred > 0).astype(np.float32)
-    t = (target > 0).astype(np.float32)
-    intersection = (p * t).sum()
-    union = p.sum() + t.sum() - intersection
-    return float((intersection + eps) / (union + eps))
+    if g_sum == 0 and p_sum > 0:
+        return {"dice": 0.0, "iou": 0.0, "precision": 0.0, "recall": 1.0, "p_sum": p_sum, "g_sum": 0, "intersection": 0}
+
+    dice = (2.0 * intersection) / (p_sum + g_sum)
+    iou = intersection / union if union > 0 else 0.0
+    prec = intersection / p_sum if p_sum > 0 else 0.0
+    rec = intersection / g_sum if g_sum > 0 else 0.0
+
+    return {
+        "dice": dice,
+        "iou": iou,
+        "precision": prec,
+        "recall": rec,
+        "p_sum": p_sum,
+        "g_sum": g_sum,
+        "intersection": intersection
+    }
 
 
 def evaluate_model(
     model: ForgeryNet,
     loader,
     device: torch.device,
-    det_thresh: float = 0.32,
-    seg_thresh: float = 0.25,
+    det_thresh: float = 0.30,
+    seg_thresh: float = 0.60,
 ) -> dict:
     model.eval()
 
     all_det_logits, all_det_preds, all_bin_targets = [], [], []
     all_type_preds, all_type_targets = [], []
-    raw_dices, otsu_dices, raw_ious = [], [], []
+    sample_dices, sample_ious, sample_precs, sample_recs = [], [], [], []
+    type_localization = {0: {"dice": [], "iou": []}, 1: {"dice": [], "iou": []}, 2: {"dice": [], "iou": []}}
+    total_inter, total_p_sum, total_g_sum = 0.0, 0.0, 0.0
+    genuine_false_positives = 0
+    genuine_patch_count = 0
 
     print(f"Running evaluation (det_thresh={det_thresh}, seg_thresh={seg_thresh})...")
 
@@ -65,7 +86,7 @@ def evaluate_model(
             d_probs = torch.sigmoid(d_logit).cpu().numpy().flatten()
             bl_np   = bl.numpy().flatten()
             tl_np   = tl.numpy().flatten()
-            s_np    = s_mask.cpu().numpy()
+            s_np    = s_mask.cpu().numpy()  # Already sigmoid
             m_np    = masks.numpy()
 
             all_det_logits.extend(d_probs)
@@ -79,21 +100,29 @@ def evaluate_model(
                     all_type_preds.append(tp)
                     all_type_targets.append(tt)
 
-            # Localization metrics for forged samples
-            for sm, gm, b in zip(s_np, m_np, bl_np):
-                if b == 1 and gm.sum() > 0:
-                    raw_bin = (sm[0] > seg_thresh).astype(np.uint8)
-                    gt_bin  = (gm[0] > 0.5).astype(np.uint8)
-                    raw_dices.append(dice_coeff(raw_bin, gt_bin))
-                    raw_ious.append(iou_coeff(raw_bin, gt_bin))
+            # Localization metrics
+            for sm, gm, b, t in zip(s_np, m_np, bl_np, tl_np):
+                pred_bin = (sm[0] > seg_thresh).astype(np.uint8)
+                gt_bin  = (gm[0] > 0.5).astype(np.uint8)
 
-                    # Otsu cleaning
-                    try:
-                        th = threshold_otsu(sm[0])
-                        otsu_bin = (sm[0] > th).astype(np.uint8)
-                        otsu_dices.append(dice_coeff(otsu_bin, gt_bin))
-                    except Exception:
-                        otsu_dices.append(dice_coeff(raw_bin, gt_bin))
+                if b == 0:
+                    genuine_patch_count += 1
+                    if pred_bin.sum() > 0:
+                        genuine_false_positives += 1
+                else:
+                    m_res = compute_mask_metrics(pred_bin, gt_bin)
+                    sample_dices.append(m_res["dice"])
+                    sample_ious.append(m_res["iou"])
+                    sample_precs.append(m_res["precision"])
+                    sample_recs.append(m_res["recall"])
+
+                    total_inter += m_res["intersection"]
+                    total_p_sum += m_res["p_sum"]
+                    total_g_sum += m_res["g_sum"]
+
+                    if t in type_localization:
+                        type_localization[t]["dice"].append(m_res["dice"])
+                        type_localization[t]["iou"].append(m_res["iou"])
 
     # Branch 1 Metrics
     all_bin_targets = np.array(all_bin_targets)
@@ -115,9 +144,13 @@ def evaluate_model(
     forged_rec = float((all_det_preds[forged_mask] == 1).mean()) if forged_mask.sum() > 0 else 0.0
 
     # Branch 2 Metrics
-    mean_raw_dice  = float(np.mean(raw_dices)) if raw_dices else 0.0
-    mean_raw_iou   = float(np.mean(raw_ious)) if raw_ious else 0.0
-    mean_otsu_dice = float(np.mean(otsu_dices)) if otsu_dices else 0.0
+    mean_dice  = float(np.mean(sample_dices)) if sample_dices else 0.0
+    mean_iou   = float(np.mean(sample_ious)) if sample_ious else 0.0
+    global_dice = (2.0 * total_inter) / (total_p_sum + total_g_sum) if (total_p_sum + total_g_sum) > 0 else 0.0
+    global_iou  = total_inter / (total_p_sum + total_g_sum - total_inter) if (total_p_sum + total_g_sum - total_inter) > 0 else 0.0
+    pix_prec    = float(np.mean(sample_precs)) if sample_precs else 0.0
+    pix_rec     = float(np.mean(sample_recs)) if sample_recs else 0.0
+    gen_fpr     = (genuine_false_positives / genuine_patch_count * 100.0) if genuine_patch_count > 0 else 0.0
 
     # Branch 3 Metrics
     all_type_targets = np.array(all_type_targets)
@@ -133,14 +166,16 @@ def evaluate_model(
     print(f"BRANCH 1 (DETECTION):")
     print(f"  Overall Accuracy        : {acc * 100:.2f}% ({sum(all_det_preds == all_bin_targets)}/{len(all_bin_targets)})")
     print(f"  ROC-AUC                 : {roc_auc:.4f}")
-    print(f"  Genuine Specificity     : {gen_acc * 100:.2f}% ({sum(all_det_preds[gen_mask] == 0)}/{gen_mask.sum()}) [0 false alarms]")
+    print(f"  Genuine Specificity     : {gen_acc * 100:.2f}% ({sum(all_det_preds[gen_mask] == 0)}/{gen_mask.sum()})")
     print(f"  Forged Recall           : {forged_rec * 100:.2f}% ({sum(all_det_preds[forged_mask] == 1)}/{forged_mask.sum()})")
     print(f"  Precision / Recall / F1 : {prec:.4f} / {rec:.4f} / {f1:.4f}")
     print("-" * 65)
     print(f"BRANCH 2 (LOCALIZATION):")
-    print(f"  Raw Model Mean Dice     : {mean_raw_dice:.4f}")
-    print(f"  Raw Model Mean IoU      : {mean_raw_iou:.4f}")
-    print(f"  Otsu Cleaned Mean Dice  : {mean_otsu_dice:.4f}")
+    print(f"  Sample-wise Mean Dice   : {mean_dice:.4f}")
+    print(f"  Sample-wise Mean IoU    : {mean_iou:.4f}")
+    print(f"  Global Dataset Dice     : {global_dice:.4f} | Global IoU: {global_iou:.4f}")
+    print(f"  Pixel Precision / Rec   : {pix_prec:.4f} / {pix_rec:.4f}")
+    print(f"  Genuine Patch FPR       : {gen_fpr:.2f}% false alarm rate on authentic pages")
     print("-" * 65)
     print(f"BRANCH 3 (TAMPERING CATEGORIZATION):")
     print(f"  Overall 3-Class Accuracy: {type_acc * 100:.2f}%")
@@ -153,7 +188,7 @@ def evaluate_model(
 
     return {
         "det_acc": acc, "roc_auc": roc_auc, "gen_acc": gen_acc, "forged_rec": forged_rec,
-        "raw_dice": mean_raw_dice, "raw_iou": mean_raw_iou, "otsu_dice": mean_otsu_dice,
+        "mean_dice": mean_dice, "mean_iou": mean_iou, "global_dice": global_dice,
         "type_acc": type_acc, "type_macro_f1": type_macro_f1
     }
 
