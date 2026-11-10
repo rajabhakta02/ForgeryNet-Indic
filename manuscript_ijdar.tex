@@ -61,13 +61,16 @@
 }
 \makeatother
 
+% Scale ORCID icon cleanly inline with author name
+\renewcommand{\orcidlogo}{\includegraphics[height=1.8ex]{Orcidlogo.eps}}
+
 \begin{document}
 
 \title[ForgeryNet: Multi-Task Indic Handwriting Forgery Forensics]{ForgeryNet: A Dual-Stream Multi-Task Deep Framework for Detection, Localization, and Categorization of Handwritten Forgeries in Indic Scripts}
 
 %% Author names & affiliations
 \author*[1]{\fnm{Raja} \sur{Bhakta}}\email{raja.iiests.96@gmail.com}
-\author[1]{\fnm{Samit} \sur{Biswas}}\email{samit@cs.iiests.ac.in}
+\author[1]{\fnm{Samit} \sur{Biswas}\,\orcid{https://orcid.org/0000-0001-9379-4484}}\email{samit@cs.iiests.ac.in}
 
 \affil[1]{\orgdiv{Department of Computer Science and Technology}, \orgname{Indian Institute of Engineering Science and Technology, Shibpur}, \orgaddress{\city{Howrah}, \postcode{711103}, \state{West Bengal}, \country{India}}}
 
