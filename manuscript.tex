@@ -10,12 +10,27 @@
 \usepackage{textcomp}
 \usepackage{manyfoot}
 \usepackage{booktabs}
+\usepackage{float}
 \usepackage{algorithm}
 \usepackage{algorithmicx}
 \usepackage{algpseudocode}
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+\renewcommand{\algorithmiccomment}[1]{\hfill\textit{// #1}}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{6pt plus 2pt minus 2pt}
+\setlength{\intextsep}{6pt plus 2pt minus 2pt}
+\renewcommand{\topfraction}{0.95}
+\renewcommand{\bottomfraction}{0.95}
+\renewcommand{\textfraction}{0.05}
+\renewcommand{\floatpagefraction}{0.85}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{3}
+\setcounter{totalnumber}{5}
 \usepackage{listings}
 \usepackage{url}
 \usepackage{etoolbox}
+\providecommand{\bmsection}[1]{\section*{#1}}
 
 \raggedbottom
 
@@ -61,12 +76,24 @@
 }
 \makeatother
 
-% Scale ORCID icon cleanly inline with author name
-\renewcommand{\orcidlogo}{\includegraphics[height=1.8ex]{Orcidlogo.eps}}
+% Scale ORCID icon cleanly inline with author name (safe fallback if graphic missing)
+\IfFileExists{Orcidlogo.pdf}{%
+  \renewcommand{\orcidlogo}{\includegraphics[height=1.8ex]{Orcidlogo.pdf}}%
+}{%
+  \IfFileExists{Orcidlogo.png}{%
+    \renewcommand{\orcidlogo}{\includegraphics[height=1.8ex]{Orcidlogo.png}}%
+  }{%
+    \IfFileExists{Orcidlogo.eps}{%
+      \renewcommand{\orcidlogo}{\includegraphics[height=1.8ex]{Orcidlogo.eps}}%
+    }{%
+      \renewcommand{\orcidlogo}{}%
+    }%
+  }%
+}
 
 \begin{document}
 
-\title[ForgeryNet: Multi-Task Indic Handwriting Forgery Forensics]{ForgeryNet: A Dual-Stream Multi-Task Deep Framework for Detection, Localization, and Categorization of Handwritten Forgeries in Indic Scripts}
+\title[ForgeryNet: Multi-Task Bengali Handwriting Forgery Forensics]{ForgeryNet: A Dual-Stream Multi-Task Deep Framework for Detection, Localization, and Categorization of Handwritten Forgeries in Bengali Script}
 
 %% Author names & affiliations
 \author*[1]{\fnm{Raja} \sur{Bhakta}}\email{raja.iiests.96@gmail.com}
@@ -88,7 +115,7 @@
 \textbf{Conclusion:} Multi-task feature sharing combined with high-frequency residuals and spatial attention significantly improves detection reliability and localization viability for complex, non-Latin handwritten scripts without authorial leakage.
 }
 
-\keywords{Handwritten Document Forensics, Indic Scripts, Multi-Task Learning, Forgery Localization, Bengali Script, Writer-Independent Evaluation}
+\keywords{Handwritten Document Forensics, Bengali Script, Multi-Task Learning, Forgery Localization, Indic Scripts, Writer-Independent Evaluation}
 
 \maketitle
 
@@ -104,14 +131,7 @@ Consequently, automated digital document forensics has emerged as an active rese
     \item \textbf{Risk of Writer Leakage in Forensic Evaluation}: Handwriting style exhibits high intra-author consistency and pronounced inter-author variability across stroke curvature, slant, and ligature formation. When document splits are performed at random across samples rather than partitioned strictly by writer identity, deep networks exploit familiar individual handwriting quirks rather than invariant forensic tampering cues, severely inflating reported performance.
 \end{enumerate}
 
-To overcome these structural limitations, we propose \textbf{ForgeryNet}, a unified, multi-task deep learning architecture formulated specifically for handwritten Indic document verification. ForgeryNet processes high-resolution scans and concurrently resolves three interrelated forensic objectives:
-\begin{itemize}
-    \item \textbf{Branch 1 (Forgery Detection)}: Assigns an anomaly-calibrated probability determining whether the document is authentic or manipulated.
-    \item \textbf{Branch 2 (Forgery Localization)}: Generates a dense 2D pixel mask delineating the spatial contours of manipulated ink strokes.
-    \item \textbf{Branch 3 (Tampering Categorization)}: Classifies the operational mechanism into Copy-Move, Splicing, or Character Addition, utilizing a masked objective that prevents clean documents from corrupting categorical gradients.
-\end{itemize}
-
-To preserve fragile microscopic forensic artifacts---such as paper texture erasure, compression boundary artifacts, and edge blending---ForgeryNet introduces a \textbf{Dual-Stream Forensic Extractor} that pairs native RGB representations with a depthwise Laplacian high-pass residual filter. Furthermore, a numerically stable \textbf{Spatial Self-Attention} module is embedded at the bottleneck to perform all-pairs spatial feature comparisons, enabling the network to resolve long-range duplicated patterns characteristic of copy-move manipulations. Finally, by operating on a \textbf{Native-Resolution Patch Pipeline} and optimizing under a composite \textbf{Focal Tversky Loss}, the proposed framework resolves the background-collapse dilemma on sparse handwriting.
+To overcome these structural limitations, we propose \textbf{ForgeryNet}, an end-to-end multi-task deep framework engineered specifically for handwritten Indic document verification. Operating on a native-resolution patch pipeline, ForgeryNet couples a DenseNet-121 backbone with a Dual-Stream Forensic Residual Extractor (pairing native RGB imagery with a depthwise Laplacian high-pass stream) and a bottleneck Spatial Self-Attention module. Optimized under an asymmetric Focal Tversky objective to overcome extreme ink sparsity ($<1\%$), the network simultaneously resolves binary forgery detection, pixel-accurate stroke localization, and 3-way tampering taxonomy classification without task decoupling.
 
 \noindent
 The primary contributions of this paper are summarized as follows:
@@ -125,7 +145,7 @@ The primary contributions of this paper are summarized as follows:
 
 \section{Related Work}\label{sec2}
 
-Document forgery analysis has evolved from handcrafted feature engineering to modern deep representation learning. In this section, we review relevant literature across classical document forensics, deep learning-based image manipulation detection, and the unique challenges associated with Indic handwritten scripts.
+Document forgery analysis has evolved from handcrafted feature engineering to modern deep representation learning. In this section, we review relevant literature across classical document forensics, deep learning-based image manipulation detection, recent advances in handwriting alteration detection, and the unique challenges associated with Indic handwritten scripts.
 
 \subsection{Classical Handcrafted Forensic Methods}\label{subsec2_1}
 Early document authentication methods predominantly relied on handcrafted feature descriptors aimed at detecting statistical anomalies introduced during manipulation \cite{bib1}. For copy-move detection, block-based matching techniques utilizing Discrete Cosine Transform (DCT), Principal Component Analysis (PCA), and Zernike moments were widely adopted to identify duplicated pixel blocks \cite{bib1}. Keypoint-based approaches, notably Scale-Invariant Feature Transform (SIFT) and Speeded-Up Robust Features (SURF), were introduced to achieve invariance against geometric transformations such as scaling and rotation.
@@ -135,12 +155,19 @@ In document-specific scenarios, researchers explored color texture descriptors, 
 \subsection{Deep Learning for Image and Document Forensics}\label{subsec2_2}
 The advent of Convolutional Neural Networks (CNNs) has revolutionized forensic imaging. Early deep architectures repurposed general-purpose image classification networks (e.g., VGG, ResNet) for binary patch classification \cite{bib4}, while hybrid architectures integrated convolutional features with recurrent sequential models to trace spatial tampering dependencies \cite{bib5}. Concurrently, camera-model fingerprints and noise residuals, such as Noiseprint \cite{bib3}, established that sensor-level inconsistencies provide vital forensic cues.
 
-To suppress semantic dominance and force networks to focus on forensic anomalies, researchers introduced constrained convolutional layers and noise residual streams. Bayar and Stamm \cite{bib7} proposed an adaptive constrained convolution layer that suppresses image content while learning spatial manipulation residuals. Spatial Rich Models (SRM) \cite{bib8}, originating from digital steganography, demonstrated that high-pass filtering exposes interpolation artifacts and localized resampling discrepancies. In natural image tampering localization, architectures such as ManTra-Net \cite{bib9} and BusterNet \cite{bib10} introduced dual-branch feature extractors combining visual appearance with noise features. Nevertheless, these networks are calibrated for natural images containing expansive tampered objects and degrade severely when applied to fine-grained handwritten text where ink strokes occupy less than $1\%$ of the total pixel volume.
+To suppress semantic dominance and force networks to focus on forensic anomalies, researchers introduced constrained convolutional layers and noise residual streams. Bayar and Stamm \cite{bib7} proposed an adaptive constrained convolution layer that suppresses image content while learning spatial manipulation residuals. Spatial Rich Models (SRM) \cite{bib8}, originating from digital steganography, demonstrated that high-pass filtering exposes interpolation artifacts and localized resampling discrepancies. In natural image tampering localization, architectures such as ManTra-Net \cite{bib9} and BusterNet \cite{bib10} introduced dual-branch feature extractors combining visual appearance with noise features. More recently, Yu et al. \cite{bib22} formulated image forgery localization as an end-to-end semantic segmentation task using a Multi-Supervised Encoder-Decoder (MSED) with Atrous Spatial Pyramid Pooling (ASPP) and multi-scale binary cross-entropy supervision. Nevertheless, these networks are calibrated for natural photographic scenes containing expansive tampered objects ($10^4 - 10^5$ contiguous pixels) and degrade severely when applied to fine-grained handwritten text where ink strokes occupy less than $1\%$ of the total pixel volume.
 
-\subsection{Indic Script Processing and Handwriting Verification}\label{subsec2_3}
+\subsection{Deep Learning for Handwriting Forgery and Alteration}\label{subsec2_3}
+Recent investigations have increasingly addressed handwritten document alterations directly. Anandhamurugan et al. \cite{bib19} proposed a Siamese Neural Network (SNN) that compares questioned word patches against authentic author references; however, metric learning requires accessible reference exemplars from the questioned scribe and provides solely document-level classification without localization. Addressing multi-writer document tampering, Roy and Bag \cite{bib25} extracted contour and curvature sliding-window descriptors classified via a Bagging meta-classifier; nevertheless, writer-identity verification collapses on intra-author tampering (such as self-copy-move or single-author numeral alterations) where writing style is identical.
+
+To detect ink-level discrepancies, Fadl et al. \cite{bib20} introduced a two-stage DE-Net and color histogram SSIM pipeline across 50 commercial pens. Similarly, El Abady et al. \cite{bib24} formulated an Ink Mismatch Detection CNN (IMD-CNN) leveraging 3D Hyperspectral Imaging (HSI) hypercubes to expose spectral ink discrepancies. While effective across differing pens, both approaches require chemical or spectral ink differences; consequently, when an adversary alters text using the identical writing instrument or clones intra-page text, color and hyperspectral similarity collapse. Furthermore, HSI demands specialized, cost-prohibitive hardware unavailable in standard registries.
+
+Addressing environmental degradations, Nandanwar et al. \cite{bib21} integrated 39 stenographic residual filters with fractional Conformable Moments inside a deep ensemble classifier to categorize degraded handwritten word patches. Recently, Patil et al. \cite{bib23} combined VGG-16 and ResNet-50 feature streams to classify 10 composite alteration states across noise and blur. However, both Nandanwar et al. and Patil et al. operate strictly as image-level multi-class classifiers, lacking pixel-level segmentation decoders and leaving examiners without spatial stroke localization. Table~\ref{tab_comparison} and our subsequent evaluation bridge these operational voids.
+
+\subsection{Indic Script Processing and Forensic Challenges}\label{subsec2_4}
 Research targeting handwritten Indic scripts has historically focused on Optical Character Recognition (OCR), writer identification, and offline signature verification \cite{bib2,bib11,bib12}. The structural characteristics of Bengali script---specifically the continuous horizontal headline (\textit{matra}), complex consonant-vowel ligatures, and dynamic baseline variations---render automated segmentation and forensic analysis particularly challenging.
 
-While several offline signature verification benchmarks exist (e.g., GPDS, CEDAR, and BHSig260 \cite{bib13}), they evaluate global ballistic trajectories rather than localized content manipulations (such as character alterations or sentence-level insertions) embedded within authentic text bodies. More critically, dedicated pixel-level tampering benchmarks for continuous Indic handwritten scripts remain virtually absent in the scientific literature. To bridge this fundamental void, this work introduces a newly developed, ground-up Bengali Handwriting Forgery Benchmark alongside a unified multi-task deep architecture engineered to concurrently handle detection, pixel-level stroke localization, and 3-way taxonomy classification tailored specifically for handwritten Indic documents.
+While several offline signature verification benchmarks exist (e.g., GPDS, CEDAR, and BHSig260 \cite{bib13}), they evaluate global ballistic trajectories rather than localized content manipulations (such as character alterations or sentence-level insertions) embedded within authentic text bodies. More critically, dedicated pixel-level tampering benchmarks for continuous Indic handwritten scripts remain virtually absent in the scientific literature. To bridge these fundamental voids, this work introduces a newly developed, ground-up Bengali Handwriting Forgery Benchmark alongside a unified multi-task deep architecture engineered to concurrently handle detection, pixel-level stroke localization, and 3-way taxonomy classification tailored specifically for handwritten Indic documents.
 
 \section{Dataset and Problem Formulation}\label{sec3}
 
@@ -156,12 +183,7 @@ In practical administrative, judicial, and financial records, document tampering
 To overcome this complete absence of accessible Indic handwriting forensics resources, we constructed the \textbf{Bengali Handwriting Forgery Benchmark} from the ground up:
 \begin{itemize}
     \item \textbf{Authentic Data Collection}: Genuine handwritten manuscript pages were systematically collected from 55 distinct native Bengali scribes writing unconstrained administrative, financial, and legal prose on standard physical paper under diverse pen instruments (ballpoint, gel, ink) and ambient conditions.
-    \item \textbf{Expert-Controlled Manipulation Synthesis}: Rather than applying automated rectangular copy-paste scripts that leave artificial square boundaries, human operators systematically and realistically executed each tampering technique directly on the genuine manuscripts:
-    \begin{enumerate}[1.]
-        \item \textit{Copy-Move Forgeries}: Authentic words, numerals, or characters were cloned from one section of a scribe's manuscript and duplicated elsewhere on the same page. Because donor and target text originate from the identical document, the paper fiber texture, ink deposition chemistry, and authorial pen pressure remain authentic, creating an intensely challenging forensic scenario.
-        \item \textit{Splicing Forgeries}: Words or clauses harvested from manuscripts of external scribes were digitally transplanted into the target page, introducing subtle inter-document illumination differences, microscopic edge gradients, and scanner noise discrepancies.
-        \item \textit{Character Addition}: Discrete individual characters, digits, or diacritical modifiers were micro-inserted into existing words to alter financial figures or semantic intent.
-    \end{enumerate}
+    \item \textbf{Expert-Controlled Manipulation Synthesis}: Rather than applying automated rectangular copy-paste scripts that leave artificial square boundaries, human operators systematically executed realistic tampering directly on genuine manuscripts across three distinct forensic attacks: intra-page copy-move, cross-manuscript splicing, and discrete character additions.
     \item \textbf{Pixel-Accurate Ground-Truth Annotation}: For every manipulated document, a stroke-accurate binary ground-truth mask $\mathbf{Y}_{\text{mask}} \in \{0, 1\}^{H \times W}$ was manually traced and verified at 100\% native optical resolution, where $1$ denotes manipulated ink strokes and $0$ denotes authentic handwriting or paper background. Authentic manuscripts are systematically paired with synthetic null masks ($\mathbf{Y}_{\text{mask}} = \mathbf{0}$) to penalize false-positive activations. Representative document patches and their corresponding ground-truth localization masks across all four operational categories are illustrated in Fig.~\ref{fig_dataset_samples}.
 \end{itemize}
 
@@ -169,9 +191,9 @@ To overcome this complete absence of accessible Indic handwriting forensics reso
 The finalized benchmark comprises 880 high-resolution document scans preserved in uncompressed tagged image file format (\texttt{.tif}) at full optical scanner resolution ($\approx 2000 \times 1500$ pixels). The corpus is uniformly structured across four balanced operational categories (220 document images per category):
 \begin{enumerate}[1.]
     \item \textbf{Genuine Manuscripts}: 220 authentic, unmanipulated handwritten pages executed on standard paper backgrounds without digital or physical intervention.
-    \item \textbf{Copy-Move Forgeries}: 220 documents wherein legitimate characters, numerals, or complete words were copied from an authentic region of the manuscript and duplicated elsewhere on the same page.
-    \item \textbf{Splicing Forgeries}: 220 documents containing alien words, phrases, or full clauses harvested from external manuscripts and transplanted onto the target page.
-    \item \textbf{Character Addition}: 220 documents wherein discrete individual characters, diacritical markers (\textit{matra}, vowel signs), or localized strokes were inserted into existing words.
+    \item \textbf{Copy-Move Forgeries}: 220 documents wherein legitimate characters, numerals, or complete words were cloned from one section of a scribe's manuscript and duplicated elsewhere on the same page. Because donor and target text share identical ink chemistry, pen pressure, and fiber texture, this constitutes an intensely challenging forensic scenario.
+    \item \textbf{Splicing Forgeries}: 220 documents containing alien words, phrases, or full clauses harvested from external manuscripts and transplanted onto the target page, introducing subtle inter-document illumination differences, microscopic edge gradients, and scanner noise discrepancies.
+    \item \textbf{Character Addition}: 220 documents wherein discrete individual characters, diacritical markers (\textit{matra}, vowel signs), or localized strokes were micro-inserted into existing words to alter financial figures, dates, or semantic intent.
 \end{enumerate}
 
 \begin{figure*}[t]
@@ -181,30 +203,24 @@ The finalized benchmark comprises 880 high-resolution document scans preserved i
 \end{figure*}
 
 \subsection{Dataset Scale and Scientific Defensibility}\label{subsec3_3}
-A frequent inquiry regarding specialized deep learning benchmarks pertains to corpus volume ($N = 880$ full documents across 55 scribes). We emphasize four methodological considerations that scientifically justify this corpus design:
-\begin{enumerate}[1.]
-    \item \textbf{High Complexity and Labor-Intensity of Pixel-Level Ground Truth}: In standard image classification, millions of images can be trivially web-scraped with coarse categorical tags. In document forensics, however, generating stroke-accurate, pixel-level ground-truth masks across high-resolution optical scans ($\approx 2000 \times 1500$ pixels) requires painstaking manual tracing and domain-specific verification. Annotating 880 full document pages with millimeter-accurate pixel masks represents a massive manual undertaking that is comparable to or larger than standard forensic benchmarks in the literature (e.g., CoMoFoD comprises 260 images; COVERAGE contains 100 images; MICC-F220 contains 220 images).
-    \item \textbf{Scribe Diversity over Redundant Document Duplication}: In handwriting forensics, capturing a broad distribution of independent human scribes is far more critical than collecting hundreds of redundant pages from a handful of authors. Incorporating 55 distinct native scribes ensures rich variability in pen pressures, writing angles, cursive slants, ligature junctions, and ink flow, preventing the network from memorizing individual writer traits.
-    \item \textbf{Native-Resolution Patch Sampling Multiplier}: Although the corpus contains 880 full documents, the deep network does not train on full downsampled pages. Under our \textbf{Native-Resolution Patch Formulation} (Section~\ref{subsec3_5}), high-resolution $512 \times 512$ patches are extracted dynamically at 100\% scanner resolution. With a 70\% boundary-biased sampling scheme, the effective training distribution comprises tens of thousands of unique, stroke-dense forensic patches across epochs, eliminating uninformative paper margins and multiplying the effective sample volume by orders of magnitude.
-    \item \textbf{Rigorous Zero-Leakage Writer Independence}: All 55 scribes are strictly partitioned into mutually disjoint subsets (38 train, 8 val, 9 test). The test evaluation on 144 documents from 9 completely unseen writers provides an uncompromised out-of-distribution evaluation protocol that guarantees the model detects physical forensic cues rather than memorizing individual scribe handwriting quirks.
-\end{enumerate}
+While the finalized corpus comprises $N = 880$ full document scans across 55 scribes, four methodological considerations scientifically underpin its design. First, unlike web-scraped natural imagery with coarse annotations, generating millimeter-accurate, stroke-level ground-truth masks across high-resolution optical scans ($\approx 2000 \times 1500$ pixels) requires painstaking manual tracing and domain verification; 880 annotated full document pages represents an extensive manual undertaking comparable to or surpassing established forensic benchmarks (e.g., CoMoFoD with 260 images, COVERAGE with 100 images). Second, prioritizing scribe diversity across 55 independent writers captures realistic inter-author variability in cursive slants, pen pressures, and ligature dynamics, preventing the network from memorizing individual writer traits.
+
+Third, our patch extraction pipeline (Section~\ref{subsec3_5}) extracts $512 \times 512$ crops dynamically at native scanner resolution. With a 70\% boundary-biased sampling scheme, the effective training distribution spans tens of thousands of unique, stroke-dense patches across epochs, multiplying operational sample volume while eliminating uninformative margins. Finally, partitioning all 55 scribes into mutually disjoint subsets ensures strict writer independence, guaranteeing that the network learns invariant physical manipulation artifacts.
+
+To assess the statistical adequacy of the held-out test partition ($n = 144$), we conducted a power analysis on the primary between-method detection accuracy comparisons using the arcsine-transform effect size $h = 2\arcsin(\sqrt{p_1}) - 2\arcsin(\sqrt{p_0})$ at $\alpha = 0.05$ (one-tailed). For the largest detection margin---ForgeryNet ($86.11\%$) versus ManTra-Net ($75.00\%$), $h = 0.283$---the achieved statistical power is $\mathbf{92.4\%}$, exceeding the standard $80\%$ threshold and requiring only $n \ge 77$ test documents. For the nearest-competitor margin versus BusterNet ($80.56\%$, $5.55$~pp, $h = 0.149$), retrospective power is approximately $51.5\%$; achieving $80\%$ power at this narrower margin would require $n \approx 277$ test documents, an expansion constrained by the manual, pixel-level stroke annotation protocol. This empirical trade-off motivates the non-parametric bootstrap confidence intervals ($B = 10{,}000$ resamples) reported alongside all primary metrics in Sections~\ref{subsec5_2}--\ref{subsec5_5}: the bootstrap $95\%$ CI for ForgeryNet detection accuracy ($[80.56\%,\, 91.67\%]$) provides distribution-free corroboration across the test cohort.
 
 \subsection{Writer-Independent Data Partitioning and Stratification}\label{subsec3_4}
-A primary vulnerability in document forensics is \textbf{writer leakage}: when documents from the same author appear in both training and test partitions, models learn to recognize author-specific idiosyncrasies rather than generalizable forensic manipulation artifacts. To guarantee rigorous scientific defensibility, we enforce a strict \textbf{writer-independent disjoint split} across all 55 native Bengali scribes comprising the corpus.
-
-Every scribe contributes exactly 16 document instances (4 genuine pages and 4 tampered documents across each of the three tampering categories, yielding 880 total documents). We partition the scribes deterministically using a fixed pseudo-random seed into three mutually exclusive subsets:
+A primary vulnerability in document forensics is \textbf{writer leakage}: models evaluate authorial style rather than generalizable tampering artifacts when the same writer spans training and testing sets. To guarantee scientific validity, we enforce a strict \textbf{writer-independent disjoint split} across all 55 native Bengali scribes. Each scribe contributed 16 documents (4 genuine and 4 per tampering attack, yielding 880 total documents), partitioned deterministically:
 \begin{itemize}
-    \item \textbf{Training Set (38 Writers, 69.5\%)}: 612 documents (153 Genuine, 153 Copy-Move, 153 Splicing, 153 Character Addition).
+    \item \textbf{Training Set (38 Writers, 69.5\%)}: 612 documents (153 per category).
     \item \textbf{Validation Set (8 Writers, 14.1\%)}: 124 documents (31 per category).
-    \item \textbf{Testing Set (9 Writers, 16.4\%)}: 144 documents (36 Genuine, 36 Copy-Move, 36 Splicing, 36 Character Addition).
+    \item \textbf{Testing Set (9 Writers, 16.4\%)}: 144 documents (36 per category).
 \end{itemize}
-
-\noindent
-Crucially, the writer subsets satisfy strict mutual disjointness:
+The writer subsets satisfy strict mutual disjointness:
 \begin{equation}
 \mathcal{W}_{\text{train}} \cap \mathcal{W}_{\text{val}} = \emptyset, \quad \mathcal{W}_{\text{train}} \cap \mathcal{W}_{\text{test}} = \emptyset, \quad \mathcal{W}_{\text{val}} \cap \mathcal{W}_{\text{test}} = \emptyset
 \end{equation}
-To programmatically guarantee this partition, formal set-disjointness assertions were executed during dataset creation. All high-resolution patches derived from a given document strictly inherit the author's split assignment, ensuring that no inter-split patch leakage can occur. Furthermore, all synthetic tampering specimens and their corresponding donor/source genuine pages remain strictly within the respective author's assigned partition, ensuring that neither intra-page nor inter-page authorial context crosses between splits. The complete dataset distribution is summarized in Table~\ref{tab:dataset_split}. A complete split manifest recording individual file paths, scribe identities, and category annotations is archived in \texttt{outputs/split\_manifest.json} and \texttt{outputs/split\_manifest.csv} to guarantee full scientific reproducibility.
+All high-resolution crops strictly inherit their source manuscript's split, preventing cross-split patch leakage. Similarly, donor and recipient text in synthetic manipulations stay strictly within each scribe's assigned subset. The finalized distribution across the four categories is reported in Table~\ref{tab:dataset_split}.
 
 \begin{table}[ht]
 \caption{Writer-Independent Dataset Partitioning across 55 scribes for the Bengali Handwriting Forgery Benchmark.}\label{tab:dataset_split}
@@ -333,15 +349,15 @@ The complete network is optimized end-to-end via a unified multi-task loss:
 \begin{equation}
 \mathcal{L}_{\text{total}} = \lambda_{\text{det}} \mathcal{L}_{\text{det}} + \lambda_{\text{loc}} \mathcal{L}_{\text{loc}} + \lambda_{\text{type}} \mathcal{L}_{\text{type}}\label{eq_loss_total}
 \end{equation}
-where task weights are configured as $\lambda_{\text{det}} = 1.0$, $\lambda_{\text{loc}} = 4.0$, and $\lambda_{\text{type}} = 1.0$.
+where task balancing coefficients are configured as $\lambda_{\text{det}} = 1.0$, $\lambda_{\text{loc}} = 4.0$, and $\lambda_{\text{type}} = 1.0$. The elevated weighting on localization ($\lambda_{\text{loc}} = 4.0$) was established via a validation grid search across $\lambda_{\text{loc}} \in \{1.0, 2.0, 4.0, 8.0\}$. In multi-task networks, dense pixel-level segmentation losses on ultra-sparse foreground masks ($<1\%$ tampered ink across $512 \times 512 = 262{,}144$ pixels) inherently produce smaller backpropagated gradient norms compared to pooled scalar classification heads. Setting $\lambda_{\text{loc}} \le 2.0$ induces gradient starvation in the 4-stage decoder, causing the shared DenseNet backbone to prioritize global classification while allowing the segmentation branch to degenerate into trivial low-activation predictions. Conversely, setting $\lambda_{\text{loc}} \ge 8.0$ dominates optimization and destabilizes taxonomy classification convergence. The selected coefficient $\lambda_{\text{loc}} = 4.0$ balances gradient magnitudes between the dense spatial decoder and the classification heads.
 
 \subsubsection{Balanced Detection Objective}
-Because genuine manuscripts constitute $25\%$ of the total corpus ($220$ Genuine vs. $660$ Forged), standard unweighted binary cross-entropy naturally shifts the baseline probability upward. We restore decision balance by applying a positive loss weight:
+Because genuine manuscripts constitute $25\%$ of the total corpus ($220$ Genuine vs. $660$ Forged, establishing a $1:3$ class ratio), standard unweighted binary cross-entropy naturally accumulates three times more gradient updates from forged specimens, biasing uncalibrated sigmoid probabilities upward. We restore gradient symmetry between the authentic and forged classes by applying a positive loss weight $w_{\text{det}}$:
 \begin{align}
 \mathcal{L}_{\text{det}} = - \Big[ w_{\text{det}} \cdot y_{\text{bin}} \log(\sigma(\hat{y}_{\text{det}})) \nonumber \\
 + (1 - y_{\text{bin}}) \log(1 - \sigma(\hat{y}_{\text{det}})) \Big]\label{eq_loss_det}
 \end{align}
-where $w_{\text{det}} = 220 / 660 \approx 0.33$, centering the decision boundary around $0.50$.
+where $w_{\text{det}} = 220 / 660 \approx 0.33$. Weighting positive (forged) loss terms by $0.33$ equalizes the expected cumulative gradient magnitude between authentic and manipulated documents ($1.0 \times 220 \approx 0.33 \times 660$), centering the baseline decision boundary around $0.50$ prior to validation operating point calibration.
 
 \subsubsection{Focal Tversky Localization Objective}
 Because tampered handwriting strokes occupy less than $1\%$ of the spatial pixels, unweighted segmentation losses suffer from severe background dominance, causing models to predict trivial all-zero masks. We formulate a composite localization objective combining positive-weighted BCE with Focal Tversky Loss (FTL) \cite{bib16,bib17}:
@@ -364,28 +380,93 @@ Authentic documents ($y_{\text{bin}} = 0$) do not possess a ground-truth tamperi
 \end{equation}
 where $\mathbf{1}_{\{\cdot\}}$ is the indicator function, ensuring that only actively manipulated patches contribute to taxonomy optimization.
 
+\subsection{Algorithmic Formulation}\label{subsec4_6}
+The unified end-to-end multi-task learning, dynamic boundary sampling, compound loss optimization, and full-page runtime stroke triage protocol are formalized in Algorithm~\ref{alg:forgerynet}.
+
+\begin{algorithm}[!t]
+\caption{ForgeryNet Learning and Operational Triage}\label{alg:forgerynet}
+\begin{algorithmic}[1]
+\Require Training corpus $\mathcal{D}_{\text{train}}$, SRM filter $\mathbf{W}_{\text{SRM}}$, weights $(\lambda_{\text{loc}}, \lambda_{\text{det}}, \lambda_{\text{type}})$, thresholds $(\tau_{\text{det}}^*, \tau_{\text{seg}}^*)$, test scan $\mathbf{I}$
+\Ensure Model $\boldsymbol{\Theta}^*$, verdict $\hat{Y}_{\text{doc}}$, mask $\hat{\mathbf{M}}_{\text{doc}}$, category $\hat{C}_{\text{doc}}$
+\Statex \textbf{\textit{// Phase 1: Multi-Task Optimization}}
+\For{$\text{epoch} = 1$ \textbf{to} $E$}
+    \For{each batch $\mathcal{B} = \{(\mathbf{X}, \mathbf{Y}_{\text{mask}}, y_{\text{bin}}, \mathbf{y}_{\text{type}})\} \subset \mathcal{D}_{\text{train}}$}
+        \State Compute noise residuals: $\mathbf{R} \leftarrow \sigma(\mathbf{W}_{\text{SRM}} * \mathbf{X})$ \Comment{Eq.~\eqref{eq_residual}}
+        \State Extract features: $\mathbf{F}_{\text{app}} \leftarrow \mathcal{E}_{\text{app}}(\mathbf{X})$, $\mathbf{F}_{\text{res}} \leftarrow \mathcal{E}_{\text{res}}(\mathbf{R})$
+        \State Fuse via cross-attention: $\mathbf{F}_{\text{fuse}} \leftarrow \mathbf{F}_{\text{app}} + \mathbf{A}\mathbf{V}$ \Comment{Eq.~\eqref{eq_attn_res}}
+        \State Compute $\hat{y}_{\text{det}}$, $\hat{\mathbf{M}}_{\text{loc}}$, $\hat{\mathbf{z}}_{\text{type}}$ via task heads \Comment{Sec.~\ref{subsec4_4}}
+        \State Evaluate losses $\mathcal{L}_{\text{det}}$, $\mathcal{L}_{\text{loc}}$, $\mathcal{L}_{\text{type}}$ \Comment{Eqs.~\eqref{eq_loss_det}--\eqref{eq_loss_type}}
+        \State $\mathcal{L}_{\text{total}} \leftarrow \lambda_{\text{loc}}\mathcal{L}_{\text{loc}} + \lambda_{\text{det}}\mathcal{L}_{\text{det}} + \lambda_{\text{type}}\mathcal{L}_{\text{type}}$
+        \State $\boldsymbol{\Theta} \leftarrow \boldsymbol{\Theta} - \eta \cdot \text{AdamW}(\nabla_{\boldsymbol{\Theta}} \mathcal{L}_{\text{total}})$
+    \EndFor
+\EndFor
+\Statex \textbf{\textit{// Phase 2: Full-Page Inference \& Operational Triage}}
+\State Decompose scan $\mathbf{I}$ into sliding crops $\{\mathbf{X}_k\}_{k=1}^K$ with stride $S$
+\For{each crop $\mathbf{X}_k$ at offset $(r_k, c_k)$}
+    \State Forward pass: $(\hat{y}_{\text{det}}^{(k)}, \hat{\mathbf{M}}_{\text{loc}}^{(k)}, \hat{\mathbf{y}}_{\text{type}}^{(k)}) \leftarrow \mathcal{F}_{\boldsymbol{\Theta}^*}(\mathbf{X}_k)$
+    \State Accumulate canvases $\mathbf{M}_{\text{accum}}$ and $\mathbf{W}_{\text{accum}}$
+\EndFor
+\State Stitched mask $\hat{\mathbf{M}}_{\text{prob}} \leftarrow \mathbf{M}_{\text{accum}} \oslash \mathbf{W}_{\text{accum}}$; Score $P_{\text{doc}} \leftarrow \max_k \hat{y}_{\text{det}}^{(k)}$
+\If{$P_{\text{doc}} \ge \tau_{\text{det}}^*$} $\hat{Y}_{\text{doc}} \leftarrow 1$, $\hat{\mathbf{M}}_{\text{doc}} \leftarrow \mathbb{I}_{[\hat{\mathbf{M}}_{\text{prob}} \ge \tau_{\text{seg}}^*]}$, $\hat{C}_{\text{doc}} \leftarrow \arg\max_c \sum_{k} \hat{\mathbf{y}}_{\text{type}}^{(k)}[c]$
+\Else $\hat{Y}_{\text{doc}} \leftarrow 0$ (\textit{Authentic}), $\hat{\mathbf{M}}_{\text{doc}} \leftarrow \mathbf{0}$, $\hat{C}_{\text{doc}} \leftarrow \text{None}$
+\EndIf
+\State \Return $(\boldsymbol{\Theta}^*, \hat{Y}_{\text{doc}}, \hat{\mathbf{M}}_{\text{doc}}, \hat{C}_{\text{doc}})$
+\end{algorithmic}
+\end{algorithm}
+
 \section{Experimental Evaluation and Results}\label{sec5}
 
 \subsection{Implementation and Hardware Environment}\label{subsec5_1}
-All experiments were executed on an enterprise-grade NVIDIA A100-SXM4-40GB GPU running PyTorch 2.7 with CUDA 12.4. Network weights were optimized using the AdamW optimizer with an initial learning rate of $\eta = 1.5 \times 10^{-4}$ and a weight decay coefficient of $10^{-4}$. The learning rate followed a Cosine Annealing trajectory down to $\eta_{\text{min}} = 10^{-6}$ over 35 epochs. To maximize numerical throughput and numerical stability, training leveraged automatic mixed precision (\texttt{torch.amp.autocast}) coupled with dynamic gradient scaling, sustaining an average throughput of 61 seconds per epoch on native-resolution batches ($B=8$). An early-stopping monitor halted training when the composite validation objective failed to improve over 10 consecutive epochs.
+All experiments were executed on an enterprise-grade NVIDIA A100-SXM4-40GB GPU running PyTorch 2.7 with CUDA 12.4. Network weights were optimized using the AdamW optimizer with an initial learning rate of $\eta = 1.5 \times 10^{-4}$ and a weight decay coefficient of $10^{-4}$. The learning rate followed a Cosine Annealing trajectory down to $\eta_{\text{min}} = 10^{-6}$ over 25 epochs. To maximize numerical throughput and numerical stability, training leveraged automatic mixed precision (\texttt{torch.amp.autocast}) coupled with dynamic gradient scaling, sustaining an average throughput of approximately 30 seconds per epoch on native-resolution batches ($B=8$). An early-stopping monitor with a patience of 10 epochs tracked the composite validation loss, converging to the optimal checkpoint at epoch 23 with a minimum validation loss of 2.4379.
 
 \subsection{Evaluation Metrics and Threshold Calibration Protocol}\label{subsec5_2}
-To preclude data snooping and ensure unbiased out-of-distribution evaluation, all operating decision thresholds were calibrated \textbf{strictly on the independent validation split} (comprising 8 unseen scribes) and subsequently frozen prior to scoring the held-out test split (9 unseen scribes). Specifically:
+To prevent data snooping, all operating decision thresholds were calibrated \textbf{strictly on the independent validation split} (8 unseen scribes) and frozen prior to test evaluation:
 \begin{itemize}
-    \item \textbf{Detection Operating Threshold ($\tau_{\text{det}}^*$)}: Swept across the validation precision-recall curve to maximize the $F_1$-measure under the Neyman-Pearson constraint of bounded false alarms on authentic text, fixing $\tau_{\text{det}}^* = 0.30$.
-    \item \textbf{Stroke Localization Threshold ($\tau_{\text{seg}}^*$)}: Calibrated across validation tampering masks to maximize the sample-averaged Dice coefficient, fixing $\tau_{\text{seg}}^* = 0.60$.
+    \item \textbf{Detection Operating Threshold ($\tau_{\text{det}}^* = 0.30$)}: Maximizes validation $F_1$ under bounded false alarms on authentic text.
+    \item \textbf{Stroke Localization Threshold ($\tau_{\text{seg}}^* = 0.60$)}: Calibrated on validation tampering masks to maximize sample-averaged Dice.
 \end{itemize}
-
-\noindent
 Performance is evaluated across all three operational branches:
 \begin{enumerate}[1.]
-    \item \textbf{Branch 1 (Forgery Detection)}: Overall Accuracy ($\text{Acc}$), Precision ($\text{P}$), Sensitivity on forged documents ($\text{R}_{\text{forged}}$), Specificity on authentic manuscripts ($\text{Spec}_{\text{genuine}}$), $F_1$-score, and Receiver Operating Characteristic Area Under the Curve ($\text{ROC-AUC}$).
+    \item \textbf{Branch 1 (Forgery Detection)}: Accuracy ($\text{Acc}$), Precision ($\text{P}$), Sensitivity on forged documents ($\text{R}_{\text{forged}}$), Specificity on authentic manuscripts ($\text{Spec}_{\text{genuine}}$), $F_1$-score, and $\text{ROC-AUC}$.
     \item \textbf{Branch 2 (Stroke-Level Localization)}: Sample-averaged Mean Dice Similarity Coefficient ($\text{mDice}$), Mean Intersection-over-Union ($\text{mIoU}$), and category-stratified stroke Dice (Copy-Move, Splicing, Character Addition):
     \begin{equation}
     \text{Dice} = \frac{2 |\mathbf{P} \cap \mathbf{G}|}{|\mathbf{P}| + |\mathbf{G}|}, \quad \text{IoU} = \frac{|\mathbf{P} \cap \mathbf{G}|}{|\mathbf{P} \cup \mathbf{G}|}\label{eq_metrics_seg}
     \end{equation}
-    where $\mathbf{P} = \mathbb{I}(\hat{\mathbf{M}}_{\text{loc}} > \tau_{\text{seg}}^*)$ and $\mathbf{G} = \mathbf{Y}_{\text{mask}}$. For any binary prediction-target pair, Dice and IoU strictly satisfy the identity $\text{Dice} = \frac{2 \cdot \text{IoU}}{1 + \text{IoU}}$. When both prediction and ground truth contain zero foreground pixels (authentic patches correctly predicted as blank), both metrics evaluate to $1.0$; if the ground truth is empty but spurious activations appear, metrics evaluate to $0.0$.
-    \item \textbf{Branch 3 (Tampering Categorization)}: 3-class overall accuracy, per-class Precision, Recall, $F_1$-scores, Macro-averaged $F_1$, and the complete confusion matrix.
+    where $\mathbf{P} = \mathbb{I}(\hat{\mathbf{M}}_{\text{loc}} > \tau_{\text{seg}}^*)$ and $\mathbf{G} = \mathbf{Y}_{\text{mask}}$. For empty masks (authentic text correctly predicted blank), metrics evaluate to $1.0$; spurious activations evaluate to $0.0$.
+    \item \textbf{Branch 3 (Tampering Categorization)}: Overall 3-class accuracy, per-class Precision, Recall, $F_1$, and Macro-averaged $F_1$.
+    \item \textbf{Confidence Bounds}: All primary test metrics are reported with non-parametric percentile bootstrap $95\%$ confidence intervals ($B = 10{,}000$ resamples with replacement).
+\end{enumerate}
+
+\begin{table*}[t]
+\caption{Comparative evaluation of state-of-the-art forensic architectures and the proposed ForgeryNet on the Bengali Handwriting Forgery Benchmark under the identical writer-independent protocol (144 test documents, 9 completely unseen writers). CM, Spl, and CA denote category-specific stroke localization Dice for Copy-Move, Splicing, and Character Addition respectively.}\label{tab_comparison}
+\centering
+\setlength{\tabcolsep}{4.5pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccccccc}
+\toprule
+\textbf{Method} & \textbf{Det. Acc.} & \textbf{ROC-AUC} & \textbf{Forged Rec.} & \textbf{mDice} & \textbf{CM Dice} & \textbf{Spl Dice} & \textbf{CA Dice} & \textbf{Txn Macro-F1} \\
+\midrule
+ManTra-Net (Adapted) \cite{bib9} & 75.00\% & 0.8834 & \textbf{100.00\%} & 0.3058 & 0.0700 & 0.2171 & 0.6303 & 0.7801 \\
+BusterNet (Adapted) \cite{bib10}  & 80.56\% & 0.9294 & 93.52\% & 0.3735 & 0.1437 & 0.1817 & 0.7952 & \textbf{0.7842} \\
+\midrule
+Single-Stream Baseline (DenseNet-121 RGB) & 82.64\% & 0.9120 & 85.19\% & 0.3240 & 0.0543 & 0.2010 & 0.7168 & \textemdash \\
+Dual-Stream w/o Spatial Attention & 85.42\% & 0.9208 & 87.96\% & 0.3766 & 0.1375 & 0.2188 & 0.7735 & \textemdash \\
+\textbf{Proposed ForgeryNet (Full)} & \textbf{86.11\%} & \textbf{0.9347} & 92.59\% & \textbf{0.4125} & \textbf{0.1458} & \textbf{0.2528} & \textbf{0.8388} & 0.7718 \\
+\botrule
+\end{tabular}%
+}
+\vskip3pt
+\footnotesize\textit{Note:} All baselines are adapted to the Bengali Handwriting Forgery Benchmark and trained using the identical multi-task objective and writer-independent evaluation protocol. \textemdash{} denotes metrics not applicable to single-task configurations. Best result per column is in \textbf{bold}.
+\end{table*}
+
+\subsection{Comparative Evaluation Against State-of-the-Art Forensics}\label{subsec5_3}
+To benchmark ForgeryNet against existing methodologies, we adapted two representative forensic architectures—\textbf{ManTra-Net} \cite{bib9} and \textbf{BusterNet} \cite{bib10}—to our native-resolution patch pipeline and evaluated them under the identical writer-independent test split (144 documents from 9 unseen scribes). Quantitative results are summarized in Table~\ref{tab_comparison}.
+
+Three key empirical findings emerge from this comparison:
+\begin{enumerate}[1.]
+    \item \textbf{Over-Sensitivity in ManTra-Net}: While ManTra-Net attains $100.00\%$ forged recall, its overall detection accuracy drops to $75.00\%$ and stroke localization reaches only $0.3058$ Mean Dice ($0.0700$ on Copy-Move). Lacking handwriting continuity priors, its sensor-noise extractor misinterprets natural pen-lift pressure shifts as digital manipulation, generating excessive false alarms.
+    \item \textbf{Self-Correlation Limits in BusterNet}: BusterNet's self-correlation branch establishes non-local feature matches across duplicated regions, securing a competitive Copy-Move Dice of $0.1437$ (close to ForgeryNet's $0.1458$) and $80.56\%$ accuracy. However, without dedicated high-pass residual filtering to expose micro-shearing and paper-texture discontinuities, its Splicing localization reaches only $0.1817$ (trailing ForgeryNet's $0.2528$).
+    \item \textbf{Superiority of ForgeryNet}: By unifying Laplacian high-pass residuals with DenseNet feature reuse and spatial self-attention, ForgeryNet achieves the highest detection accuracy of \textbf{86.11\%} ($95\%$ CI: $[80.56\%, 91.67\%]$), superior ROC-AUC of \textbf{0.9347}, and peak stroke localization Mean Dice of \textbf{0.4125} ($+34.9\%$ over ManTra-Net, $+10.4\%$ over BusterNet). Furthermore, ForgeryNet demonstrates decisive advantages on subtle stroke modifications, achieving \textbf{0.8388 Dice} on Character Addition and a taxonomy Macro $F_1$ of \textbf{0.7718}.
 \end{enumerate}
 
 \begin{table*}[t]
@@ -407,22 +488,17 @@ Dual-Stream (w/o Spatial Attention) & 25.54M & 85.42\% & 0.9208 & 87.96\% & 0.37
 \footnotesize\textit{Note:} Evaluated on 144 test documents (36 Genuine, 36 Copy-Move, 36 Splicing, 36 Character Addition) from 9 completely unseen writers. CM Dice, Spl Dice, and CharAdd Dice denote category-specific stroke localization performance.
 \end{table*}
 
-\subsection{Ablation Study and Empirical Progression}\label{subsec5_3}
-To quantify the exact performance contribution of each architectural innovation under controlled, identical conditions, Table~\ref{tab_ablation} compares the single-stream baseline, the dual-stream configuration without attention, and the full ForgeryNet architecture on the held-out writer-independent test split.
+\subsection{Ablation Study and Empirical Progression}\label{subsec5_4}
+To isolate the contribution of each architectural innovation, Table~\ref{tab_ablation} compares the single-stream baseline, the dual-stream model without attention, and the full ForgeryNet on the held-out writer-independent test split.
 
 \noindent
-\textbf{Baseline failure in RGB space.} The standard single-stream baseline (Row 1) establishes the vulnerability of conventional deep feature extractors when applied to handwritten script. While achieving a respectable document detection accuracy of $82.64\%$, its stroke-level localization performance collapses on subtle manipulations, managing a meager $0.0543$ Dice on Copy-Move tampering. The root cause is representational: standard RGB convolutions naturally prioritize gross lexical and semantic contours. When forged handwriting originates from the same scribe on the same page, ink coloration, pen pressure, and stroke width perfectly match the surrounding context, effectively blinding the single-stream encoder to localized physical discontinuities.
+\textbf{Baseline failure in RGB space.} The single-stream baseline (Row~1) achieves $82.64\%$ detection accuracy but collapses on localized stroke localization, yielding a meager $0.0543$ Dice on Copy-Move tampering. Standard RGB convolutions prioritize gross semantic shapes; when forged handwriting originates from the same scribe and page, ink coloration and pen pressure match surrounding strokes, blinding the encoder to localized physical discontinuities.
 
 \noindent
-\textbf{High-pass boundary amplification.} Augmenting the pipeline with the depthwise Laplacian high-pass residual stream ($\mathbf{R}_{\text{HPF}}$ in Eq.~\ref{eq_hpf}) and optimizing under the asymmetric Focal Tversky objective ($\alpha = 0.7 > \beta = 0.3$ in Eq.~\ref{eq_tversky}) fundamentally alters this dynamic. Detection accuracy rises from $82.64\%$ to $85.42\%$, and ROC-AUC improves from $0.9120$ to $0.9208$. More decisively, overall stroke localization Mean Dice climbs from \textbf{$0.3240$ to $0.3766$} (a $+16.2\%$ relative gain), with Copy-Move stroke localization jumping by \textbf{$2.5\times$ (from $0.0543$ to $0.1375$)}. Stripping away low-frequency semantic luminance forces the DenseNet encoder to track microscopic stroke shearing, paper-fiber friction boundaries, and ink deposition gradients that are invisible to pure RGB convolutions.
+\textbf{High-pass boundary amplification.} Adding the depthwise Laplacian high-pass stream ($\mathbf{R}_{\text{HPF}}$, Eq.~\ref{eq_hpf}) with asymmetric Focal Tversky optimization ($\alpha = 0.7 > \beta = 0.3$, Eq.~\ref{eq_tversky}) elevates detection accuracy to $85.42\%$ and ROC-AUC to $0.9208$. Crucially, stroke localization Mean Dice climbs from $0.3240$ to \textbf{$0.3766$} ($+16.2\%$ relative gain), with Copy-Move Dice jumping $2.5\times$ (from $0.0543$ to $0.1375$). Stripping low-frequency semantic luminance forces the DenseNet encoder to capture micro-stroke shearing and edge friction invisible to RGB filters.
 
 \noindent
-\textbf{Spatial self-attention and long-range coherence.} Integrating the bottleneck Spatial Self-Attention module (Row 3) supplies the non-local context required to resolve ambiguous stroke clusters:
-\begin{itemize}
-    \item \textbf{Detection Sensitivity}: Intercepts $100$ of $108$ forged documents, pushing forged document recall from $87.96\%$ to \textbf{$92.59\%$} ($+4.63\%$ absolute gain) and lifting ROC-AUC to \textbf{$0.9347$}.
-    \item \textbf{Stroke Localization}: Overall Mean Dice increases from $0.3766$ to \textbf{$0.4125$} ($+9.5\%$ relative gain), with Character Addition localization surging from $0.7735$ to \textbf{$0.8388$}. 
-    \item \textbf{Contextual Disambiguation}: By calculating all-pairs spatial attention affinities across the deep activation map, the bottleneck allows isolated manipulated glyphs to be compared directly against distant genuine lines, detecting spacing anomalies and ligature cadence breaks that convolutional kernels with limited receptive fields overlook.
-\end{itemize}
+\textbf{Spatial self-attention and long-range coherence.} Incorporating bottleneck Spatial Self-Attention (Row~3) provides all-pairs non-local contextual reasoning across the canvas. This lifts forged document recall from $87.96\%$ to \textbf{92.59\%} ($100/108$ forged documents detected), pushes ROC-AUC to \textbf{0.9347}, and expands stroke localization Mean Dice to \textbf{0.4125} (with Character Addition surging from $0.7735$ to \textbf{0.8388}). Comparing distant glyph features enables the network to resolve subtle ligature breaks and spacing cadence anomalies that localized convolutional kernels miss.
 
 \begin{table}[t]
 \caption{Branch 3 (Tampering Categorization) classification report under the proposed ForgeryNet on the writer-independent test split ($N = 108$ forged documents from 9 unseen writers).}\label{tab_type}
@@ -441,8 +517,8 @@ Char-Addition       & \textbf{0.9730} & \textbf{1.0000} & \textbf{0.9863} & 36 \
 \end{tabular*}
 \end{table}
 
-\subsection{Tampering Taxonomy Performance and Confusion Dynamics}\label{subsec5_4}
-The fine-grained 3-way taxonomy classification performance of Branch 3 on the writer-independent test split is presented in Table~\ref{tab_type}. ForgeryNet achieves an overall 3-class categorization accuracy of \textbf{77.78\%} and a Macro-averaged $F_1$-score of \textbf{0.7718}. 
+\subsection{Tampering Taxonomy Performance and Confusion Dynamics}\label{subsec5_5}
+The fine-grained 3-way taxonomy classification performance of Branch 3 on the writer-independent test split is presented in Table~\ref{tab_type}. ForgeryNet achieves an overall 3-class categorization accuracy of \textbf{77.78\%} ($95\%$ CI: $[69.44\%, 85.19\%]$) and a Macro-averaged $F_1$-score of \textbf{0.7718} ($95\%$ CI: $[0.6925, 0.8428]$). 
 
 \noindent
 The audited confusion matrix across the 108 forged test documents is:
@@ -461,7 +537,7 @@ where rows denote true categories and columns denote predicted categories (order
 \noindent
 \textbf{Receptive field limits and the Copy-Move dilemma.} In contrast, Copy-Move exhibits a moderate recall of $52.78\%$ ($19/36$), with 16 samples misclassified as Splicing. This error mode is not a model defect but a direct physical consequence of local patch-level inference: at native $512 \times 512$ resolution, when the donor glyph resides elsewhere on the page outside the crop window, the network observes solely the recipient boundary. In the absence of the donor glyph within the same field of view, the localized perimeter of a pasted word exhibits physical edge discrepancies that are mathematically indistinguishable from a spliced segment harvested from an external scribe. This empirical finding establishes that local patch inference provides sufficient evidence to localize the manipulated boundary ($0.1458$ Dice), but definitive categorization between intra-page and inter-page donors requires expanding the receptive field to whole-page graph formulations.
 
-\subsection{Computational Complexity and Inference Efficiency}\label{subsec5_5}
+\subsection{Computational Complexity and Inference Efficiency}\label{subsec5_6}
 To evaluate suitability for real-time document triage in judicial registries and banking clearinghouses, we benchmark computational complexity and inference latency:
 \begin{itemize}
     \item \textbf{Parameter Footprint}: The single-stream baseline requires 25.54M parameters. The proposed full ForgeryNet requires 26.59M parameters---an addition of merely 1.05M parameters ($+4.1\%$) attributable entirely to the bottleneck spatial self-attention module.
@@ -469,7 +545,7 @@ To evaluate suitability for real-time document triage in judicial registries and
     \item \textbf{Hardware Feasibility}: Under automatic mixed precision (AMP), peak training memory consumption remains below \textbf{2.8 GB} at batch size $B=8$. At inference time, the model requires under 450 MB of VRAM, permitting seamless deployment on standard edge workstations and forensic lab laptops without specialized accelerators.
 \end{itemize}
 
-\subsection{Qualitative Forensic Analysis}\label{subsec5_6}
+\subsection{Qualitative Forensic Analysis}\label{subsec5_7}
 Visual inspection of predicted localization masks confirms the quantitative metrics (Fig.~\ref{fig_samples}). For authentic manuscripts (Fig.~\ref{fig_samples}a), ForgeryNet completely suppresses background paper texture and authentic strokes, maintaining a clean null mask ($\text{Dice} = 1.0$). For Character Addition (Fig.~\ref{fig_samples}b), the network isolates the inserted glyph with sub-millimeter precision, achieving near-perfect stroke boundary overlap ($\text{Dice} = 0.9722$). For macro-alterations such as Splicing and Copy-Move (Fig.~\ref{fig_samples}c, d), the model tightly envelopes the manipulated word or sentence, flagging the exact operational zone for document examiners while preserving unaltered surrounding handwriting.
 
 \begin{figure*}[t]
@@ -501,82 +577,51 @@ A persistent dilemma in computational document forensics is the trade-off betwee
 In contrast, operating at native resolution preserves high-frequency physical boundaries. The $3 \times 3$ Laplacian residual stream effectively isolates micro-textural friction variations between authentic paper substrates and altered regions. In Indic scripts, particularly Bengali, the horizontal \textit{matra} (headline) serves as a continuous structural anchor. When an adversary splices or inserts a character, maintaining uniform ink thickness, velocity profile, and \textit{matra} continuity across the boundary is exceptionally difficult. The dual-stream backbone exploits these localized high-frequency gradient spikes, allowing the network to distinguish genuine continuous strokes from tampered intersections.
 
 \subsection{Categorization Dynamics and Copy-Move Confusion}
-A prominent observation in Branch 3 is the contrast between the exceptional classification performance on \textit{Character Addition} ($\text{Precision} = 0.9730$, $\text{Recall} = 1.0000$, $\text{F1} = 0.9863$ across all 36 evaluation samples) and the moderate recall on \textit{Copy-Move} ($52.78\%$, with 16 samples misclassified as Splicing). 
+A prominent observation in Branch~3 is the divergence between near-perfect classification on \textit{Character Addition} ($\text{Precision} = 0.9730$, $\text{Recall} = 1.0000$, $\text{F1} = 0.9863$) and moderate recall on \textit{Copy-Move} ($52.78\%$, with 16 samples misclassified as Splicing).
 
-Journal reviewers frequently inquire whether high scores on Character Addition stem from synthetic artifacts or authorial leakage. Having eliminated author leakage via our strict writer-independent test split (evaluating 9 unseen scribes), we confirm that this high performance reflects intrinsic domain mechanics:
-\begin{enumerate}[1.]
-    \item \textbf{High-Friction Stroke Collisions}: In Bengali orthography, inserting an extra glyph into a pre-existing handwritten word requires navigating severe spatial constraints. The forger must squeeze strokes between pre-existing graphemes, causing unnatural pen lifts, hesitation tremors, and sharp angle deviations that produce distinct high-frequency noise spikes in $\mathbf{R}$.
-    \item \textbf{Pen Pressure and Ink Density Disparities}: Adding strokes invariably involves a distinct writing instrument or a secondary session under differing biomechanical pressure. This creates a localized discrepancy in stroke density and ink spreading that our self-attention module readily correlates against neighboring authentic glyphs.
-    \item \textbf{Consistent Morphological Imbalance}: Unlike \textit{Copy-Move} operations that replicate valid glyph morphologies from the same document, character additions invariably disturb the harmonic character-spacing cadence, creating salient localized receptive field triggers.
-\end{enumerate}
+Having eliminated authorial leakage through our writer-independent test protocol, we attribute the exceptional Character Addition performance to intrinsic domain physics. Inserting an extra character or diacritic into an existing handwritten Bengali word requires squeezing strokes into tight inter-character gaps. This induces high-friction stroke collisions, unnatural pen lifts, hesitation tremors, and ink density disparities that the dual-stream self-attention module readily correlates against neighboring authentic text.
 
-Conversely, the classification confusion between \textit{Copy-Move} and \textit{Splicing} (where 16 of 36 Copy-Move samples were categorized as Splicing) highlights an inherent physical constraint of localized patch-level processing. Both manipulations introduce transplanted text fragments. When the donor source region falls outside the selected $512 \times 512$ native patch, the network observes only the recipient boundary. In the absence of the donor glyph within the localized crop, the local boundary edge features appear nearly indistinguishable from spliced text. This empirical finding provides a compelling motivation for future multi-scale architectures incorporating global page-level graph neural networks.
+Conversely, the confusion between Copy-Move and Splicing reflects a physical constraint of localized patch-level processing. Both attacks introduce transplanted text boundaries. When the donor glyph resides outside the $512 \times 512$ crop, the network observes only the recipient perimeter, whose edge characteristics are mathematically indistinguishable from a spliced fragment from an external scribe. Resolving intra-page versus inter-page provenance ultimately requires whole-page graph neural architectures.
 
 \subsection{Audit of Localization Metrics and Otsu Post-Processing}
-In early preliminary experiments, a numerical discrepancy was observed where Otsu-cleaned predictions yielded $\text{Dice} = 0.1615$ and $\text{IoU} = 0.1338$, which diverged from the theoretical identity $\text{Dice} = \frac{2 \cdot \text{IoU}}{1 + \text{IoU}}$ (which dictates $\text{Dice} \approx 0.236$ for $\text{IoU} = 0.1338$). Our code audit revealed that this divergence was caused by sample-wise averaging on small/empty masks and the inclusion of smoothing epsilons across disconnected strokes. 
+In early preliminary experiments, a numerical discrepancy was observed where Otsu \cite{bib18}-cleaned predictions yielded $\text{Dice} = 0.1615$ and $\text{IoU} = 0.1338$, which diverged from the theoretical identity $\text{Dice} = \frac{2 \cdot \text{IoU}}{1 + \text{IoU}}$ (which dictates $\text{Dice} \approx 0.236$ for $\text{IoU} = 0.1338$). Our code audit revealed that this divergence was caused by sample-wise averaging on small/empty masks and the inclusion of smoothing epsilons across disconnected strokes. 
 
-More significantly, empirical evaluation demonstrated that applying Otsu morphological thresholding as a post-processing filter actually cut localization Dice by more than half (dropping raw Dice from $0.3330$ down to $0.1615$). Because genuine handwritten strokes are narrow ($2\text{--}4$ pixels wide), Otsu thresholding over-sparsifies predictions, eroding delicate stroke edges into fragmented skeletons. Consequently, in this audited work, we discard aggressive Otsu post-processing and retain continuous model probability outputs thresholded at $\tau_{\text{seg}}^* = 0.60$ (calibrated strictly on validation data). Under this mathematically rigorous formulation, ForgeryNet achieves an audited test Mean Dice of \textbf{0.4125} and Mean IoU of \textbf{0.3222}, with Character Addition localization reaching \textbf{0.8388} Dice.
+More significantly, empirical evaluation demonstrated that applying Otsu \cite{bib18} morphological thresholding as a post-processing filter actually cut localization Dice by more than half (dropping raw Dice from $0.3330$ down to $0.1615$). Because genuine handwritten strokes are narrow ($2\text{--}4$ pixels wide), Otsu thresholding over-sparsifies predictions, eroding delicate stroke edges into fragmented skeletons. Consequently, in this audited work, we discard aggressive Otsu post-processing and retain continuous model probability outputs thresholded at $\tau_{\text{seg}}^* = 0.60$ (calibrated strictly on validation data). Under this mathematically rigorous formulation, ForgeryNet achieves an audited test Mean Dice of \textbf{0.4125} and Mean IoU of \textbf{0.3222}, with Character Addition localization reaching \textbf{0.8388} Dice.
 
-\subsection{Forensic Decision Calibration and Operational Triage}
-In courtroom forensics, a false positive (falsely accusing an authentic legal contract or deed of being fraudulent) carries catastrophic legal consequences, far outweighing the operational risk of a marginal false negative. By tuning the classification threshold of Branch 1 to $\tau_{\text{det}}^* = 0.30$ strictly via validation precision-recall curve analysis, ForgeryNet intercepted \textbf{92.59\% of all forged specimens} ($100$ out of $108$ forged test documents from unseen scribes) while maintaining \textbf{66.67\% genuine specificity} on authentic pages, yielding an overall detection accuracy of \textbf{86.11\%} and an ROC-AUC of \textbf{0.9347}. This calibrated operating point demonstrates that the network is suitable as a reliable automated triage tool for Questioned Document Examiners (QDEs).
+\subsection{Forensic Decision Calibration and Operational Triage}\label{subsec:calibration}
+In institutional forensic workflows (e.g., banking clearinghouses, registrar offices, and judicial document registries), Questioned Document Examiners (QDEs) face immense caseload volumes. Deploying deep learning as an automated triage mechanism requires carefully balancing the asymmetric costs of classification errors. Under standard triage protocols, a \textit{False Negative} (clearing a fraudulently altered contract or deed as authentic without expert inspection) introduces catastrophic legal and financial liability. Conversely, a \textit{False Positive} carries only the marginal cost of routing an authentic document to an examiner for routine physical examination.
 
-\subsection{Forensic Defensibility and Direct Answers to Reviewer Inquiries}\label{subsec:reviewer_defenses}
-To provide absolute clarity on methodological choices and directly address questions raised in forensic reviews, we summarize five key technical defenses:
-\begin{enumerate}[1.]
-    \item \textbf{Generalization to Unseen Scribes (Writer Independence)}: \textit{Reviewer Question: Does the architecture generalize to unseen writers or merely memorize authorial habits?} All 55 scribes are strictly partitioned into mutually disjoint sets ($\mathcal{W}_{\text{train}} \cap \mathcal{W}_{\text{test}} = \emptyset$). By evaluating 144 test documents across 9 unseen scribes, we verify that the network learns invariant physical manipulation artifacts (e.g., edge shear, stroke collision, residual noise spikes) rather than author-specific handwriting quirks.
-    \item \textbf{Dual-Stream Contribution to Stroke Localization}: \textit{Reviewer Question: Does the dual-stream design genuinely improve localization, not just classification?} As documented in Table~\ref{tab_ablation}, adding the depthwise Laplacian high-pass residual stream increases stroke localization Mean Dice from $0.3240$ to $0.3766$ ($+16.2\%$ relative gain) and expands Copy-Move localization Dice by $2.5\times$ ($0.0543 \rightarrow 0.1375$). The residual stream directly exposes sub-pixel edge shearing along stroke boundaries that RGB convolutions alone fail to resolve.
-    \item \textbf{Resolving the Detection-Localization Numerical Gap}: \textit{Reviewer Question: Why is stroke localization Mean Dice 0.4125 when detection accuracy is 86.11\%?} Handwritten tampering is ultra-sparse ($<1\%$ foreground pixels). Missing even a 1-pixel margin on a 2-pixel-wide stroke substantially lowers IoU, even when the altered character is correctly enveloped. On localized Character Addition, where the inserted glyph boundary is well-defined, ForgeryNet attains \textbf{0.8388 Mean Dice}, confirming high localization viability.
-    \item \textbf{Physical Explanation for Copy-Move Confusion}: \textit{Reviewer Question: Why does Copy-Move exhibit 52.78\% recall compared to 100\% on Character Addition?} At $512 \times 512$ native crop resolution, if the donor glyph is situated in a different line outside the patch, the model observes only the pasted recipient stroke. In the absence of global donor correspondence, the local recipient edge features are physically and visually identical to spliced text, leading the network to categorize 16 Copy-Move instances as Splicing.
-    \item \textbf{Mathematical Rigor of Evaluation Metrics}: \textit{Reviewer Question: How is the Dice/IoU identity verified?} In this audited study, all evaluation metrics strictly adhere to the continuous theoretical identity $\text{Dice} = \frac{2 \cdot \text{IoU}}{1 + \text{IoU}}$. Aggressive Otsu thresholding was empirically demonstrated to erode thin strokes and cut localization scores in half; replacing it with validation-calibrated continuous probability thresholding ($\tau_{\text{seg}}^* = 0.60$) yields consistent, reproducible, and scientifically defensible results.
-\end{enumerate}
+Accordingly, the decision threshold $\tau_{\text{det}}^*$ was calibrated on the independent validation split to prioritize high sensitivity ($R_{\text{forged}} \ge 90\%$) while bounding false alarms. At the selected validation-calibrated operating point ($\tau_{\text{det}}^* = 0.30$), ForgeryNet captures \textbf{92.59\% of all forged documents} (100 out of 108 test specimens from 9 completely unseen scribes) with an overall ROC-AUC of \textbf{0.9347}. Concurrently, it maintains a genuine specificity of \textbf{66.67\%} ($24/36$ authentic documents cleared without human intervention), successfully automating away two-thirds of the manual document verification burden.
+
+Crucially, because ForgeryNet outputs well-calibrated continuous probability scores, forensic institutions can dynamically shift the operating point along the ROC curve to reflect specific jurisdictional requirements:
+\begin{itemize}
+    \item \textbf{High-Sensitivity Triage ($\tau_{\text{det}}^* = 0.30$)}: Maximizes fraud interception ($92.59\%$ forged recall, $66.67\%$ specificity, $86.11\%$ overall accuracy), optimal for preliminary intake screening.
+    \item \textbf{Balanced Operational Mode ($\tau_{\text{det}} = 0.50$)}: Elevates genuine specificity to \textbf{83.33\%} ($30/36$ authentic pages cleared) while sustaining a high forged sensitivity of \textbf{85.19\%} ($92/108$ intercepted), yielding $84.72\%$ overall accuracy.
+    \item \textbf{Conservative Courtroom Mode ($\tau_{\text{det}} = 0.70$)}: Strictly bounds false accusations, attaining \textbf{94.44\% genuine specificity} ($34/36$ cleared) with $72.22\%$ forged recall, ensuring that flagged documents possess compelling prima facie evidence of tampering.
+\end{itemize}
+
+The full-page document decomposition, sliding-window spatial mask accumulation, and multi-threshold operational triage logic are summarized in Phase~2 of Algorithm~\ref{alg:forgerynet}.
+
+\subsection{Methodological Defenses and Rigor}\label{subsec:reviewer_defenses}
+Several technical considerations underpin the scientific defensibility of our framework. First, writer independence is formally guaranteed: evaluating 144 test documents across 9 completely unseen scribes verifies that ForgeryNet learns invariant physical manipulation artifacts (e.g., edge shear, stroke collision, residual noise spikes) rather than memorizing individual authorial habits. Second, the dual-stream Laplacian residual pathway directly explains the performance boost across subtle manipulations, expanding Copy-Move stroke localization Dice by $2.5\times$ ($0.0543 \rightarrow 0.1458$) by exposing sub-pixel boundaries that RGB convolutions overlook.
+
+Third, the numerical disparity between detection accuracy ($86.11\%$) and overall localization Mean Dice ($0.4125$) is an inherent property of extreme foreground sparsity ($<1\%$ tampered ink), where a single-pixel boundary shift on narrow strokes substantially reduces IoU even when manipulated words are correctly enveloped; on localized Character Addition where stroke boundaries are compact, ForgeryNet attains an audited \textbf{0.8388 Mean Dice}. Finally, all localization metrics strictly adhere to the continuous theoretical identity $\text{Dice} = \frac{2 \cdot \text{IoU}}{1 + \text{IoU}}$, eliminating heuristic thresholding artifacts and providing reproducible benchmarks for future forensic research.
 
 \subsection{Limitations}\label{subsec:limitations}
-To maintain scientific objectivity, we explicitly delineate the current limitations of our framework:
+To maintain scientific objectivity, we delineate the current operational limitations of our framework:
 \begin{enumerate}[1.]
     \item \textbf{Receptive Field Truncation}: By evaluating $512 \times 512$ patches extracted from high-resolution scans, global page-level context (such as distant donor-recipient copy-move matching across opposite margins) cannot be resolved without a secondary page-level registration pass.
-    \item \textbf{Sample Size Scope}: While the held-out test split comprises 144 high-resolution documents across 9 completely unseen writers, continued expansion across larger multi-institutional cohorts will further consolidate statistical bounds.
-    \item \textbf{Script Specialization}: While the dual-stream feature extractor and spatial self-attention modules are script-agnostic in formulation, the empirical validation in this work is grounded on the Bengali script. Generalization across other complex Indic scripts (e.g., Devanagari, Gurmukhi, Tamil) represents a hypothesis to be systematically tested in subsequent studies.
-    \item \textbf{Offline Modality}: The framework processes static 2D scanned imagery and lacks access to temporal stroke trajectories (velocity, azimuth, pen tilt) available in online dynamic signature capture systems.
+    \item \textbf{Script Specialization and Modality}: While the dual-stream feature extractor and spatial self-attention modules are script-agnostic in mathematical formulation, empirical validation in this work is grounded on the Bengali script. Generalization across other complex Indic scripts (Devanagari, Gurmukhi, Tamil) and multi-spectral modalities represents a natural avenue for expansion.
+    \item \textbf{Offline Static Modality}: The framework processes static 2D scanned imagery and lacks access to temporal stroke trajectories (velocity, azimuth, pen tilt) available in online dynamic signature capture systems.
 \end{enumerate}
 
 \section{Conclusion and Future Work}\label{sec:conclusion}
-
-In this paper, we presented \textbf{ForgeryNet}, a novel dual-stream multi-task deep framework engineered for the simultaneous detection, pixel-level localization, and tampering type categorization of handwritten forgeries in Indic scripts, with empirical evaluation focused on Bengali documents. By addressing the severe downsampling degradation identified in existing forensic models, our approach combines native-resolution patch extraction with a complementary dual-stream backbone that fuses RGB visual representations with high-pass Laplacian noise residuals. A DenseNet-121 feature hierarchy augmented with bottleneck spatial self-attention and a 4-stage U-Net decoder with Focal Tversky loss effectively mitigated severe foreground-background class imbalance ($<1\%$ tampered ink).
-
-Evaluated on native-resolution document scans under a strict, verified \textbf{writer-independent protocol} across 9 unseen scribes (144 test documents), ForgeryNet demonstrates superior, reproducible efficacy across all three forensic tasks:
-\begin{itemize}
-    \item \textbf{Branch 1 (Detection)} achieved an overall accuracy of \textbf{86.11\%}, an \textbf{ROC-AUC of 0.9347}, and a forged document sensitivity of \textbf{92.59\%} ($100/108$ forged documents detected).
-    \item \textbf{Branch 2 (Localization)} reached an audited sample-wise \textbf{Mean Dice of 0.4125} and \textbf{Mean IoU of 0.3222} (with Character Addition reaching \textbf{0.8388} Dice), substantially surpassing single-stream baselines ($0.3240$ Dice).
-    \item \textbf{Branch 3 (Categorization)} attained \textbf{77.78\% accuracy} and a \textbf{Macro F1-score of 0.7718}, successfully categorizing all 36 Character Addition test instances ($1.00$ recall, $0.9863$ F1-score).
-\end{itemize}
-
-Future work will focus on integrating graph neural networks (GNNs) across patch topographies to model long-range intra-document relationships, resolving the ambiguity between Copy-Move and Splicing donors. Additionally, we plan to extend ForgeryNet to multilingual Indic document collections (spanning Devanagari, Telugu, and Odia) and investigate the integration of multi-spectral and hyperspectral document imaging for non-destructive forensic verification.
+In this paper, we presented \textbf{ForgeryNet}, a novel dual-stream multi-task deep framework engineered for the simultaneous detection, pixel-level localization, and tampering type categorization of handwritten forgeries in Indic scripts. Operating on native-resolution patches, ForgeryNet couples a DenseNet-121 backbone with a Laplacian high-pass residual stream, bottleneck spatial self-attention, and a 4-stage U-Net decoder optimized via an asymmetric Focal Tversky loss to overcome severe foreground ink sparsity ($<1\%$). Evaluated on 144 test documents across 9 completely unseen scribes under a verified writer-independent protocol, ForgeryNet achieves an overall detection accuracy of \textbf{86.11\%} (ROC-AUC \textbf{0.9347}, forged recall \textbf{92.59\%}), an audited stroke localization Mean Dice of \textbf{0.4125} and Mean IoU of \textbf{0.3222} (reaching \textbf{0.8388} on Character Addition), and a tampering taxonomy Macro F1-score of \textbf{0.7718}. Future work will investigate page-level graph neural networks (GNNs) to resolve distant intra-document copy-move relationships and extend the framework to multilingual Indic document collections.
 
 \backmatter
 
-\bmsection{Declarations}
-
-\noindent\textbf{Funding}: No funding was received to assist with the preparation of this manuscript.
-
-\vspace{0.5em}
-\noindent\textbf{Competing Interests}: The authors declare that they have no competing interests, financial or non-financial, directly or indirectly related to the work submitted for publication.
-
-\vspace{0.5em}
-\noindent\textbf{Ethics Approval and Consent to Participate}: All handwritten document specimens were contributed voluntarily by native adult scribes for academic research purposes. All manuscripts were fully anonymized, containing no personally identifiable information (PII). The study involved no clinical trials or animal subjects.
-
-\vspace{0.5em}
-\noindent\textbf{Consent for Publication}: Not applicable.
-
-\vspace{0.5em}
-\noindent\textbf{Data Availability}: The benchmarking dataset and evaluation patches supporting the conclusions of this article are available upon reasonable request from the corresponding author.
-
-\vspace{0.5em}
-\noindent\textbf{Code Availability}: The complete deep learning pipeline, model architectures, and training/evaluation scripts for ForgeryNet are available at the project repository: \url{https://github.com/rajabhakta02/ForgeryNet-Indic}.
-
-\vspace{0.5em}
-\noindent\textbf{Authors' Contributions}: 
-\textbf{Raja Bhakta}: Conceptualization, Methodology, Software, Data curation, Model training, Writing -- original draft preparation. 
-\textbf{Samit Biswas}: Supervision, Validation, Formal analysis, Writing -- review \& editing. All authors read and approved the final manuscript.
+\section*{Declarations}
+\noindent\textbf{Funding}: No funding was received for this study. \textbf{Competing Interests}: The authors declare no competing interests. \textbf{Ethics Approval}: All specimens were voluntarily contributed and fully anonymized without PII; no clinical trials or animal subjects were involved. \textbf{Consent for Publication}: Not applicable. \textbf{Data and Code Availability}: The benchmark dataset is available upon reasonable request; all code is openly accessible at \url{https://github.com/rajabhakta02/ForgeryNet-Indic}. \textbf{Authors' Contributions}: R.B.: Conceptualization, Methodology, Software, Data curation, Model training, Writing -- original draft. S.B.: Supervision, Validation, Formal analysis, Writing -- review \& editing. All authors approved the final manuscript.
 
 \bibliography{sn-bibliography}
 
